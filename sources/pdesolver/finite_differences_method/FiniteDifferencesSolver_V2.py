@@ -48,7 +48,7 @@ class GridConfiguration:
 
 
 class FiniteDifferencesMethod2:
-    def __init__(self, geometry, boundaryCondition):
+    def __init__(self, geometry, boundaryCondition, c):
         self.geometry = geometry
         self.boundaryCondition = boundaryCondition
         self.c = c
@@ -123,8 +123,8 @@ class FiniteDifferencesMethod2:
 
                 # central element
 
-                for valueProvider in self.gridConfiguration.valueProviders:
-                    valueProvider.apply(col, row, self.matrix)
+                #for valueProvider in self.gridConfiguration.valueProviders:
+                #    valueProvider.apply(col, row, self.matrix)
 
                 newValue = -4.0
                 if (row == 0 and col == 0) or (row == self.geometry.numY - 1 and col == self.geometry.numX - 1):
