@@ -14,6 +14,13 @@ def plotSurface(x,y,values):
                        linewidth=0, antialiased=False)
 
 
+def plotSurface_subplot(axes,x,y,values):
+
+    axes.set_zlim(-2.0, 30.0)
+    surf = axes.plot_surface(x, y, values, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+
+
 def solve_finite_differences(g, boundaryCondition, charges):
     fdm = FiniteDifferencesMethod2(g, boundaryCondition, charges)
     fdm.solve()

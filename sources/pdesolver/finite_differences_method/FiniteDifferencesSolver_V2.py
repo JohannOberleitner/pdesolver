@@ -280,17 +280,17 @@ class FiniteDifferencesMethod3:
     def solve(self):
         self.setupRightSideOfEquation()
         self.setupMatrices()
-        #self.valuesResult = np.linalg.solve(
-        #    self.matrix[1:self.geometry.numX * self.geometry.numY - 1, 1:self.geometry.numX * self.geometry.numY - 1],
-        #    self.bias[1:self.geometry.numX * self.geometry.numY - 1])
-        #self.convertToMatrix()
+        self.valuesResult = np.linalg.solve(
+            self.matrix[1:self.geometry.numX * self.geometry.numY - 1, 1:self.geometry.numX * self.geometry.numY - 1],
+            self.bias[1:self.geometry.numX * self.geometry.numY - 1])
+        self.convertToMatrix()
 
     def convertToMatrix(self):
         for row in range(1, self.geometry.numY - 1):
             for col in range(1, self.geometry.numX - 1):
                 rowIndex = (row - 1) * self.rowElements() + (col - 1)
                 # print(rowIndex, row, col)
-                self.values[col, row] = self.valuesResult[rowIndex]
+                self.values[col, row] = self.valuesResult[rowIndex] / 10.0
 
     def printBias(self):
         print(self.bias)
