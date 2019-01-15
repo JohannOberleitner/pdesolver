@@ -64,9 +64,9 @@ def generate_permability_function(index, permeability_matrix):
 
     def eps(i,j):
         if (len(permeability_matrix[index]) <= i):
-            return 0.0
+            return 1.0
         elif (len(permeability_matrix[index][i]) <= j):
-            return 0.0
+            return 1.0
 
         if (permeability_matrix[index][i,j] == 0.0):
             return 1.0
@@ -111,7 +111,8 @@ class Index(object):
 
     def redraw_permeability(self):
         self.permeability_axes.cla()
-        permeability_title = 'id = {0}, eps = {1}'.format(self.current_index, self.permeability_data[0]['permeabilities'][self.current_index])
+        pdata = self.permeability_data[0]
+        permeability_title = 'id = {0}, eps = {1}, \naxisMaj = {2}, axisMin = {3},\n angle={4:6.4f} '.format(self.current_index, pdata['permeabilities'][self.current_index], pdata['majorSemiAxis'][self.current_index], pdata['minorSemiAxis'][self.current_index], pdata['angles'][self.current_index])
         print(permeability_title)
         plot_ellipsis(self.permeability_axes, self.permeability_data[1][self.current_index], permeability_title)
         plt.draw()
@@ -123,7 +124,7 @@ if __name__ == '__main__':
 
     np.set_printoptions(threshold=np.nan)
 
-    count = 20
+    count = 60
     index = 0
 
     # setup for finite differences

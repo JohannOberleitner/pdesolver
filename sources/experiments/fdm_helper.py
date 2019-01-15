@@ -16,7 +16,7 @@ def plotSurface(x,y,values):
 
 def plotSurface_subplot(axes,x,y,values):
 
-    axes.set_zlim(-2.0, 30.0)
+    axes.set_zlim(-2.0, 10.0)
     surf = axes.plot_surface(x, y, values, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 

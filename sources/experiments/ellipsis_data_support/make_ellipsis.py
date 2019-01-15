@@ -34,7 +34,7 @@ def plot_ellipsis(ax, ellipsis_data, title):
     xData = []
     yData = []
 
-    ax.set_title(title, fontsize=14)
+    ax.set_title(title, fontsize=9)
     for x in range(0, len(ellipsis_data)):
         for y in range(0, len(ellipsis_data[x])):
             item = ellipsis_data.item((x, y))
