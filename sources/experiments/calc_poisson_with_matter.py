@@ -1,6 +1,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import MaxNLocator
 from matplotlib.widgets import Button
 
 from sources.experiments.data_generation.data_scenario1 import make_test_set, make_representation
@@ -77,13 +79,17 @@ def generate_permability_function(index, permeability_matrix):
 
 class Index(object):
 
-    def __init__(self, count, current_index, permability_data, permeability_axes, surface_axes, generate_finite_differences_solver):
+    def __init__(self, count, current_index, permability_data, permeability_axes, surface_axes, error_axes, generate_finite_differences_solver):
         self.count = count
         self.current_index = current_index
         self.permeability_data = permeability_data
         self.permeability_axes = permeability_axes
         self.surface_axes = surface_axes
+        self.error_axes = error_axes
+        self.colorbar = 0
+        self.cmap = plt.get_cmap('PiYG')
         self.generate_finite_differences_solver = generate_finite_differences_solver
+
 
     def next(self, event):
         if self.current_index+1 < count:
@@ -98,11 +104,13 @@ class Index(object):
         self.redraw_permeability()
         fdm = self.recalc_finite_differences(self.current_index)
         self.redraw_surface(fdm)
+        self.redraw_errors(fdm)
         plt.draw()
 
     def recalc_finite_differences(self, index):
         fdm = self.generate_finite_differences_solver(index)
         fdm.solve()
+        fdm.calcMetrices()
         return fdm
 
     def redraw_surface(self, fdm):
@@ -117,6 +125,16 @@ class Index(object):
         plot_ellipsis(self.permeability_axes, self.permeability_data[1][self.current_index], permeability_title)
         plt.draw()
 
+    def redraw_errors(self, fdm):
+        self.error_axes.cla()
+        if self.colorbar != 0:
+            self.colorbar.remove()
+            self.colorbar = 0
+        levels = MaxNLocator(nbins=20).tick_values(fdm.minValue-2.0, fdm.maxValue+2.0)
+        norm = BoundaryNorm(levels, ncolors = self.cmap.N, clip=True)
+        im = self.error_axes.pcolormesh(fdm.geometry.X, fdm.geometry.Y, fdm.error, norm = norm, cmap=self.cmap)
+        self.error_axes.set_title('Errors', fontsize=9)
+        self.colorbar = fig.colorbar(im, ax=self.error_axes)
 
 
 
@@ -133,6 +151,7 @@ if __name__ == '__main__':
     g = Geometry(rect, delta)
     boundaryCondition = RectangularBoundaryCondition(g)
     charges = make_charges_in_line(g, 11, -10.0, 16.0, 20.0, 48.0, 20.0)
+    #charges = make_charges_in_line(g, 32, -10.0, 16.0, 20.0, 48.0, 20.0)
 
     # setup for plot
     fig = plt.figure()
@@ -140,8 +159,9 @@ if __name__ == '__main__':
 
     permeability_data = load_test_set(count)
     permeability_title = 'eps = {0}'.format(permeability_data[0]['permeabilities'][index])
-    permeability_axes = fig.add_subplot(1, 2, 1)
-    surface_axes = fig.add_subplot(1, 2, 2, projection='3d')
+    permeability_axes = fig.add_subplot(1, 3, 1)
+    surface_axes = fig.add_subplot(1, 3, 2, projection='3d')
+    error_axes = fig.add_subplot(1, 3, 3)
 
 
     def generate_finite_differences_solver(index):
@@ -153,7 +173,7 @@ if __name__ == '__main__':
         return fdm
 
 
-    callback = Index(count, 0, permeability_data, permeability_axes, surface_axes, generate_finite_differences_solver)
+    callback = Index(count, 0, permeability_data, permeability_axes, surface_axes, error_axes, generate_finite_differences_solver)
     callback.update(0)
 
 
@@ -181,11 +201,11 @@ if __name__ == '__main__':
     #plotSurface_subplot(surface_axes, fdm.geometry.X, fdm.geometry.Y, fdm.values)
 
 
-    axnext = plt.axes([0.81, 0.05, 0.1, 0.075])
+    axnext = plt.axes([0.81, 0.0, 0.1, 0.075])
     bnext = Button(axnext, 'Next')
     bnext.on_clicked(callback.next)
 
-    axprev = plt.axes([0.7, 0.05, 0.1, 0.075])
+    axprev = plt.axes([0.7, 0.0, 0.1, 0.075])
     bprev = Button(axprev, 'Prev')
     bprev.on_clicked(callback.prev)
 
