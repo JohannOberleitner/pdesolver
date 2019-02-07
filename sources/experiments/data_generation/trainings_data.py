@@ -1,6 +1,7 @@
 
 import json
 import numpy as np
+import datetime
 
 from sources.experiments.ellipsis_data_support.make_ellipsis import create_ellipsis_grid
 
@@ -52,16 +53,18 @@ class TrainingsSetDecoder:
     def decode(self, json_data):
         count = json_data["count"]
         items = json_data["items"]
-        trainingsSet = self.init_data(count)
+        label = json_data["label"]
+        timestamp = json_data["createdAt"]
+        trainingsSet = self.init_data(count, label, timestamp)
         trainingsSet.decode(items)
         return trainingsSet
 
-    def init_data(selfself, count):
+    def init_data(selfself, count, label, timestamp):
         semiMajorAxis = [None] * count
         semiMinorAxis = [None] * count
         permittivities = [None] * count
         angles = [None] * count
-        return TrainingsSet(semiMajorAxis, semiMinorAxis, permittivities, angles)
+        return TrainingsSet(semiMajorAxis, semiMinorAxis, permittivities, angles, label=label, timestamp=timestamp)
 
 class TrainingsElement:
     def __init__(self, trainingsSet, index):
@@ -107,13 +110,15 @@ class TrainingsElement:
 
 
 class TrainingsSet:
-    def __init__(self, semiMajorAxises, semiMinorAxises, permittivities, angles):
+    def __init__(self, semiMajorAxises, semiMinorAxises, permittivities, angles, label=None, timestamp=None):
         self.semiMajorAxises = semiMajorAxises
         self.semiMinorAxises = semiMinorAxises
         self.permittivities = permittivities
         self.angles = angles
         c = len(permittivities)
         self.permittivity_matrix = [None] * len(permittivities)
+        self.label = label
+        self.timestamp = timestamp or datetime.datetime.utcnow()
 
     def count(self):
         return len(self.permittivities)
@@ -141,7 +146,7 @@ class TrainingsSet:
                           'angle':item.get_angle()
                           })
 
-        return { '__TrainingsSet__':True, 'count': self.count(), 'items':items }
+        return { '__TrainingsSet__':True, 'label':self.label, 'createdAt':str(self.timestamp), 'count': self.count(), 'items':items }
 
     def decode(self, itemsArray):
         for item in self:
@@ -151,4 +156,3 @@ class TrainingsSet:
             item.set_permittivity(itemInArray["eps"])
             item.set_angle(itemInArray["angle"])
             self.permittivity_matrix[item.index] = as_ndarray(itemInArray["permittivity_matrix"])
-            xyz = 0

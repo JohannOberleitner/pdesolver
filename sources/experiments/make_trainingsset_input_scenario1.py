@@ -12,7 +12,7 @@ from sources.pdesolver.finite_differences_method.rectangle import Rectangle
 from sources.experiments.data_generation.trainings_data import TrainingsSet, TrainingsSetEncoder
 
 
-def calculate_random_parameters(count):
+def calculate_random_parameters(count, label=None):
     angleValuesSet = np.linspace(np.pi / 20.0, np.pi, 20)
     permittivityValueRange = [0.125, 0.25, 0.5, 2., 4., 6.]
 
@@ -20,7 +20,7 @@ def calculate_random_parameters(count):
     semiAxes = np.random.randint(1, 21, size=count)
     permittivities = np.random.choice(permittivityValueRange, size=count)
 
-    return TrainingsSet([16]*count, semiAxes/2, permittivities, angles)
+    return TrainingsSet([16]*count, semiAxes/2, permittivities, angles, label=label)
 
 def write_dataset(filename, trainingsSet):
     if filename == None:
@@ -31,7 +31,7 @@ def write_dataset(filename, trainingsSet):
         json.dump(trainingsSet, file, cls=TrainingsSetEncoder)
         file.close()
 
-def generate_dataset(count):
+def generate_dataset(count, label):
 
     np.set_printoptions(threshold=np.nan)
 
@@ -44,7 +44,7 @@ def generate_dataset(count):
 
     start = time.clock()
 
-    dataset = calculate_random_parameters(count=count)
+    dataset = calculate_random_parameters(count=count, label=label)
 
     for dataElement in dataset:
         dataElement.calc_permittivity_matrix(64,64,32,32)
@@ -70,13 +70,15 @@ def deleteExistingFile(filepath):
         os.remove(filepath)
 
 def parseArguments(argv):
-    supportedOptions = "hd:o:c:"
+    supportedOptions = "hd:o:c:l:"
     supportLongOptions = ["dir=", "ofile="]
-    usage = 'make_trainingsset_input_scenario1.py -c <count> -d <directory> -o <outputfile>'
+    usage = 'make_trainingsset_input_scenario1.py -c <count> -d <directory> -o <outputfile> -l <label>'
 
     outputDirectory = '.'
     outputFile = None
+    label = None
     count = 20
+
 
     try:
         opts, args = getopt.getopt(argv, supportedOptions, supportLongOptions)
@@ -94,17 +96,19 @@ def parseArguments(argv):
             outputDirectory = arg
         elif opt in ("-o", "--ofile"):
             outputFile = arg
+        elif opt in ("-l", "--label"):
+            label = arg
 
-    return outputFile, outputDirectory, count
+    return outputFile, outputDirectory, count, label
 
 if __name__ == '__main__':
 
-    filename, directory, count = parseArguments(sys.argv[1:])
+    filename, directory, count, label = parseArguments(sys.argv[1:])
     if filename != None:
         makeTargetPath(directory)
 
     filepath = makeFilename(directory, filename)
     deleteExistingFile(filepath)
 
-    generatedDataset = generate_dataset(count)
+    generatedDataset = generate_dataset(count, label)
     write_dataset(filename, generatedDataset)

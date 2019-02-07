@@ -154,3 +154,7 @@ if __name__ == '__main__':
 #    solve_poission2d
 #      -> requires reader for trainingsset
 # 3. read_trainingsset
+#
+#
+# +Inputset: Datum, Text, Charges als array/list [[]] with values
+# +Resultset: schreiben, class ResultSet+ ResultElement
