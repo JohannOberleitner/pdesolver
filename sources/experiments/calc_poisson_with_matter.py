@@ -48,42 +48,42 @@ def make_finite_differences_poisson_equation_in_matter(eps):
 
 def load_test_set(count):
     test_set = make_test_set(count)
-    permeability_matrix = make_permeability_matrix(test_set)
+    permittivity_matrix = make_permittivity_matrix(test_set)
 
-    return (test_set, permeability_matrix)
+    return (test_set, permittivity_matrix)
 
-def make_permeability_matrix(test_set):
+def make_permittivity_matrix(test_set):
     count = len(test_set['majorSemiAxis'])
-    permeability_matrix = []
+    permittivity_matrix = []
     for i in range(count):
-        permeability_matrix.append(
+        permittivity_matrix.append(
             make_representation(i + 1, 64, 64, 32, 32, test_set['majorSemiAxis'][i], test_set['minorSemiAxis'][i],
-                                test_set['permeabilities'][i], test_set['angles'][i]))
+                                test_set['permittivities'][i], test_set['angles'][i]))
     #print(permeability_matrix)
-    return permeability_matrix
+    return permittivity_matrix
 
-def generate_permability_function(index, permeability_matrix):
+def generate_permittivity_function(index, permittivity_matrix):
 
     def eps(i,j):
-        if (len(permeability_matrix[index]) <= i):
+        if (len(permittivity_matrix[index]) <= i):
             return 1.0
-        elif (len(permeability_matrix[index][i]) <= j):
+        elif (len(permittivity_matrix[index][i]) <= j):
             return 1.0
 
-        if (permeability_matrix[index][i,j] == 0.0):
+        if (permittivity_matrix[index][i,j] == 0.0):
             return 1.0
         else:
-            return permeability_matrix[index][i,j]
+            return permittivity_matrix[index][i,j]
 
     return eps
 
 class Index(object):
 
-    def __init__(self, count, current_index, permability_data, permeability_axes, surface_axes, error_axes, generate_finite_differences_solver):
+    def __init__(self, count, current_index, permittivity_data, permittivity_axes, surface_axes, error_axes, generate_finite_differences_solver):
         self.count = count
         self.current_index = current_index
-        self.permeability_data = permeability_data
-        self.permeability_axes = permeability_axes
+        self.permittivity_data = permittivity_data
+        self.permittivity_axes = permittivity_axes
         self.surface_axes = surface_axes
         self.error_axes = error_axes
         self.colorbar = 0
@@ -101,7 +101,7 @@ class Index(object):
 
     def update(self, new_index):
         self.current_index = new_index
-        self.redraw_permeability()
+        self.redraw_permittivity()
         fdm = self.recalc_finite_differences(self.current_index)
         self.redraw_surface(fdm)
         self.redraw_errors(fdm)
@@ -117,12 +117,12 @@ class Index(object):
         self.surface_axes.cla()
         plotSurface_subplot(self.surface_axes, fdm.geometry.X, fdm.geometry.Y, fdm.values)
 
-    def redraw_permeability(self):
-        self.permeability_axes.cla()
-        pdata = self.permeability_data[0]
-        permeability_title = 'id = {0}, eps = {1}, \naxisMaj = {2}, axisMin = {3},\n angle={4:6.4f} '.format(self.current_index, pdata['permeabilities'][self.current_index], pdata['majorSemiAxis'][self.current_index], pdata['minorSemiAxis'][self.current_index], pdata['angles'][self.current_index])
-        print(permeability_title)
-        plot_ellipsis(self.permeability_axes, self.permeability_data[1][self.current_index], permeability_title)
+    def redraw_permittivity(self):
+        self.permittivity_axes.cla()
+        pdata = self.permittivity_data[0]
+        permittivity_title = 'id = {0}, eps = {1}, \naxisMaj = {2}, axisMin = {3},\n angle={4:6.4f} '.format(self.current_index, pdata['permittivities'][self.current_index], pdata['majorSemiAxis'][self.current_index], pdata['minorSemiAxis'][self.current_index], pdata['angles'][self.current_index])
+        print(permittivity_title)
+        plot_ellipsis(self.permittivity_axes, self.permittivity_data[1][self.current_index], permittivity_title)
         plt.draw()
 
     def redraw_errors(self, fdm):
@@ -157,23 +157,23 @@ if __name__ == '__main__':
     fig = plt.figure()
 
 
-    permeability_data = load_test_set(count)
-    permeability_title = 'eps = {0}'.format(permeability_data[0]['permeabilities'][index])
-    permeability_axes = fig.add_subplot(1, 3, 1)
+    permittivity_data = load_test_set(count)
+    permittivity_title = 'eps = {0}'.format(permittivity_data[0]['permittivities'][index])
+    permittivity_axes = fig.add_subplot(1, 3, 1)
     surface_axes = fig.add_subplot(1, 3, 2, projection='3d')
     error_axes = fig.add_subplot(1, 3, 3)
 
 
     def generate_finite_differences_solver(index):
 
-        eps = generate_permability_function(index, permeability_data[1])
+        eps = generate_permittivity_function(index, permittivity_data[1])
         gridConfig = make_finite_differences_poisson_equation_in_matter(eps)
 
         fdm = FiniteDifferencesMethod3(g, boundaryCondition, gridConfig, charges)
         return fdm
 
 
-    callback = Index(count, 0, permeability_data, permeability_axes, surface_axes, error_axes, generate_finite_differences_solver)
+    callback = Index(count, 0, permittivity_data, permittivity_axes, surface_axes, error_axes, generate_finite_differences_solver)
     callback.update(0)
 
 

@@ -346,13 +346,14 @@ class FiniteDifferencesMethod3:
                 # print(rowIndex, row, col)
                 self.values[col, row] = self.valuesResult[rowIndex] / 10.0
 
-    def calcRightside(self):
-        for row in range(1, self.geometry.numY - 1):
-            for col in range(1, self.geometry.numX - 1):
-                self.values[col, row]
+    #def calcRightside(self):
+    #    for row in range(1, self.geometry.numY - 1):
+    #        for col in range(1, self.geometry.numX - 1):
+    #            self.values[col, row]
 
     def calcMetrices(self):
         self.error = np.zeros_like(self.geometry.X)
+        self.results = np.zeros_like(self.geometry.X)
         self.minValue = 100.0
         self.maxValue = -100.0
         sumValue = 0.0
@@ -361,6 +362,7 @@ class FiniteDifferencesMethod3:
                 valueAtPoint = self.gridConfiguration.getValue(self.values, row, col)
                 errorAtPoint = valueAtPoint - self.c.get(row, col)
                 self.error[row, col] = errorAtPoint
+                self.results[row, col] = valueAtPoint
                 sumValue = sumValue + abs(valueAtPoint)
                 self.maxValue = max(self.maxValue, errorAtPoint)
                 self.minValue = min(self.minValue, errorAtPoint)

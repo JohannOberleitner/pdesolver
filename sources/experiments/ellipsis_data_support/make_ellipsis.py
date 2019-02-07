@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def create_ellipsis_grid(targetWidth, targetHeight, centerX, centerY, semiAxisMajor, semiAxisMinor, permeability=1.0, rotationAngle=0):
+def create_ellipsis_grid(targetWidth, targetHeight, centerX, centerY, semiAxisMajor, semiAxisMinor, permittivity=1.0, rotationAngle=0):
 
     matrix = np.zeros( (targetWidth, targetHeight) )
 
@@ -25,7 +25,7 @@ def create_ellipsis_grid(targetWidth, targetHeight, centerX, centerY, semiAxisMa
             value = (xdash**2)/a2 + (ydash**2)/b2
 
             if value <= 1:
-                matrix[xPos,yPos] = permeability
+                matrix[xPos,yPos] = permittivity
 
     return matrix
 

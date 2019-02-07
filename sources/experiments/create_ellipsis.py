@@ -76,14 +76,14 @@ if __name__ == '__main__':
     start = time.clock()
 
     angleValuesSet = np.linspace(np.pi/20.0, np.pi, 20)
-    permeabilityValuesSet = [0.125, 0.25, 0.5, 2.,4.,6.]
+    permittivityValuesSet = [0.125, 0.25, 0.5, 2.,4.,6.]
 
     angles = np.random.choice(angleValuesSet, size=count)
     semiAxes = np.random.randint(1,21,size=count)
-    permeability = np.random.choice(permeabilityValuesSet, size=count)
+    permittivity = np.random.choice(permittivityValuesSet, size=count)
 
     for i in range(0,count):
-        target = create_ellipsis_grid(64, 64, 32, 32, 16, semiAxes[i]/2, permeability[i], angles[i])
+        target = create_ellipsis_grid(64, 64, 32, 32, 16, semiAxes[i]/2, permittivity[i], angles[i])
     #print(target)
 
     duration = time.clock() - start
