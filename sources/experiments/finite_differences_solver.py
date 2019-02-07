@@ -2,6 +2,7 @@ import sys, getopt
 
 import json
 
+from sources.experiments.data_generation.results_data import ResultsSet, ResultsSetEncoder, as_ResultsSet
 from sources.experiments.data_generation.trainings_data import as_TrainingsSet
 from sources.pdesolver.finite_differences_method.FiniteDifferencesSolver_V2 import GridConfiguration, \
     FunctionGridValueProvider, FiniteDifferencesMethod3
@@ -18,6 +19,11 @@ def make_charges_in_line(g, count, charge, startX, startY, endX, endY):
     for i in range(count):
         charges.add((int)(startX + i * deltaX), (int)(startY + i*deltaY), charge)
 
+    return charges
+
+def load_chargedistribution(g, dataset):
+    charges = ChargeDistribution(g)
+    charges.addList(dataset.chargesList)
     return charges
 
 def generate_permittivity_function(permittivity_matrix):
@@ -49,12 +55,14 @@ def make_finite_differences_poisson_equation_in_matter(eps):
 def calcSolutions(inputDataSet):
 
     delta = 1.0
-    rect = Rectangle(0, 0, 64.0, 64.0)
+    rect = Rectangle(0, 0, inputDataSet.geometry.gridWidth, inputDataSet.geometry.gridHeight)
     g = Geometry(rect, delta)
     boundaryCondition = RectangularBoundaryCondition(g)
-    charges = make_charges_in_line(g, 11, -10.0, 16.0, 20.0, 48.0, 20.0)
+    charges = load_chargedistribution(g, inputDataSet)
 
     index = 1
+
+    resultsSet = ResultsSet(label=inputDataSet.label)
 
     for dataElement in inputDataset:
         eps = generate_permittivity_function(dataElement.get_permittivity_matrix())
@@ -64,19 +72,31 @@ def calcSolutions(inputDataSet):
         fdm.solve()
         fdm.calcMetrices()
 
-        s = json.dumps(fdm.results.tolist())
-        print(s)
+        resultsSet.add(fdm.results)
+
+        #s = json.dumps(fdm.results.tolist())
+        #print(s)
 
 
         #s = generate_text_presentation(index, dataElement, fdm.values, fdm.error)
         print('Solved:',index)
         index = index+1
 
+    return resultsSet
 
 def loadInputDataset(filename):
     file = open(filename, mode='r')
     dataset = json.load(file, object_hook=as_TrainingsSet)
     return dataset
+
+def write_dataset(filename, resultsSet):
+    if filename == None:
+        s = json.dumps(resultsSet, cls=ResultsSetEncoder)
+        print(s)
+    else:
+        file = open(filename, 'w')
+        json.dump(resultsSet, file, cls=ResultsSetEncoder)
+        file.close()
 
 def parseArguments(argv):
     supportedOptions = "hi:o:"
@@ -104,16 +124,28 @@ def parseArguments(argv):
     return inputFile, outputFile
 
 
+#def loadFileAgain(file):
+#    file = open(file, mode='r')
+#    data = json.load(file, object_hook=as_ResultsSet)
+#    i=1
+
+
 if __name__ == '__main__':
 
     inputFile, outputFile = parseArguments(sys.argv[1:])
     inputDataset = loadInputDataset(inputFile)
 
     try:
-        calcSolutions(inputDataset)
+        resultsSet = calcSolutions(inputDataset)
+        write_dataset(outputFile, resultsSet)
+
     except TypeError as terr:
         print(terr)
+    except AttributeError as aerr:
+        print(aerr)
 
     except:
         print("Unexpected error:", sys.exc_info()[0])
+
+#    loadFileAgain(outputFile)
 

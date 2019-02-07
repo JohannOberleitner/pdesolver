@@ -9,10 +9,12 @@ from sources.pdesolver.finite_differences_method.charge_distribution import Char
 from sources.pdesolver.finite_differences_method.geometry import Geometry
 from sources.pdesolver.finite_differences_method.rectangle import Rectangle
 
-from sources.experiments.data_generation.trainings_data import TrainingsSet, TrainingsSetEncoder
+from sources.experiments.data_generation.trainings_data import TrainingsSet, TrainingsSetEncoder, TrainingsSetGeometry
 
 
-def calculate_random_parameters(count, label=None):
+
+def calculate_random_parameters(count, geometry, chargesList=None, label=None):
+
     angleValuesSet = np.linspace(np.pi / 20.0, np.pi, 20)
     permittivityValueRange = [0.125, 0.25, 0.5, 2., 4., 6.]
 
@@ -20,7 +22,27 @@ def calculate_random_parameters(count, label=None):
     semiAxes = np.random.randint(1, 21, size=count)
     permittivities = np.random.choice(permittivityValueRange, size=count)
 
-    return TrainingsSet([16]*count, semiAxes/2, permittivities, angles, label=label)
+    return TrainingsSet(geometry, chargesList, [geometry.innerGridWidth/2.0]*count, semiAxes/2, permittivities, angles, label=label)
+
+def make_charges_in_line(g, count, chargeValue, startX, startY, endX, endY):
+    charges = ChargeDistribution(g)
+    deltaX = (endX-startX)/count
+    deltaY = (endY-startY)/count
+    for i in range(count):
+        charges.add((int)(startX + i * deltaX), (int)(startY + i*deltaY), chargeValue)
+
+    return charges
+
+def make_charges(trainingsSetGeometry):
+    rect = Rectangle(0.0, 0.0, trainingsSetGeometry.gridWidth, trainingsSetGeometry.gridHeight)
+    delta = 1.0
+    g = Geometry(rect, delta)
+    countCharges = 11
+    chargeValue = -10.0
+    yCoord = 20.0
+    xCoordLeft = rect.midX() - (trainingsSetGeometry.gridWidth - trainingsSetGeometry.innerGridWidth)/2.0
+    xCoordRight = rect.midX() +(trainingsSetGeometry.gridWidth - trainingsSetGeometry.innerGridWidth)/2.0
+    return make_charges_in_line(g, countCharges, chargeValue, xCoordLeft, yCoord, xCoordRight, yCoord)
 
 def write_dataset(filename, trainingsSet):
     if filename == None:
@@ -31,20 +53,20 @@ def write_dataset(filename, trainingsSet):
         json.dump(trainingsSet, file, cls=TrainingsSetEncoder)
         file.close()
 
-def generate_dataset(count, label):
+def generate_dataset(count, trainingsSetGeometry, charges, label):
 
     np.set_printoptions(threshold=np.nan)
 
     index = 0
 
     # setup for finite differences
+    rect = Rectangle(0.0, 0.0, trainingsSetGeometry.gridWidth, trainingsSetGeometry.gridHeight)
     delta = 1.0
-    rect = Rectangle(0, 0, 64.0, 64.0)
     g = Geometry(rect, delta)
 
     start = time.clock()
 
-    dataset = calculate_random_parameters(count=count, label=label)
+    dataset = calculate_random_parameters(count, trainingsSetGeometry, chargesList=charges.chargesList, label=label)
 
     for dataElement in dataset:
         dataElement.calc_permittivity_matrix(64,64,32,32)
@@ -66,7 +88,7 @@ def makeFilename(directory,filename):
         return os.path.join(directory,filename)
 
 def deleteExistingFile(filepath):
-    if os.path.exists(filepath):
+    if filepath and os.path.exists(filepath):
         os.remove(filepath)
 
 def parseArguments(argv):
@@ -110,5 +132,7 @@ if __name__ == '__main__':
     filepath = makeFilename(directory, filename)
     deleteExistingFile(filepath)
 
-    generatedDataset = generate_dataset(count, label)
+    geometry = TrainingsSetGeometry([64.0,64.0,32.0,32.0])
+    charges = make_charges(geometry)
+    generatedDataset = generate_dataset(count, geometry, charges, label)
     write_dataset(filename, generatedDataset)

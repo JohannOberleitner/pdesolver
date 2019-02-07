@@ -4,6 +4,8 @@ import numpy as np
 import datetime
 
 from sources.experiments.ellipsis_data_support.make_ellipsis import create_ellipsis_grid
+from sources.pdesolver.finite_differences_method.charge_distribution import ChargeDistribution
+
 
 def make_permeability_matrix_one(gridWidth, gridHeight, innerGridWidth, innerGridHeight, majorSemiAxis, minorSemiAxis, permeability, angle):
     eps_data = create_ellipsis_grid(gridWidth, gridHeight, innerGridWidth, innerGridHeight, majorSemiAxis,\
@@ -46,25 +48,42 @@ class TrainingsSetEncoder(json.JSONEncoder):
     def default(self, data):
         if isinstance(data, TrainingsSet):
             return data.encode()
+        elif isinstance(data, TrainingsSetGeometry):
+            return data.encode()
+        elif isinstance(data, ChargeDistribution):
+            return data.chargesList
         else:
             super().default(self, data)
 
 class TrainingsSetDecoder:
     def decode(self, json_data):
+
         count = json_data["count"]
         items = json_data["items"]
         label = json_data["label"]
+        geometry = json_data["geometry"]
+        chargesList = json_data["charges"]
         timestamp = json_data["createdAt"]
-        trainingsSet = self.init_data(count, label, timestamp)
+        trainingsSet = self.init_data(TrainingsSetGeometry(geometry), chargesList, count, label, timestamp)
         trainingsSet.decode(items)
         return trainingsSet
 
-    def init_data(selfself, count, label, timestamp):
+    def init_data(self, geometry, chargesList, count, label, timestamp):
         semiMajorAxis = [None] * count
         semiMinorAxis = [None] * count
         permittivities = [None] * count
         angles = [None] * count
-        return TrainingsSet(semiMajorAxis, semiMinorAxis, permittivities, angles, label=label, timestamp=timestamp)
+        return TrainingsSet(geometry, chargesList, semiMajorAxis, semiMinorAxis, permittivities, angles, label=label, timestamp=timestamp)
+
+class TrainingsSetGeometry:
+    def __init__(self, *args, **kwargs):
+        self.gridWidth = (kwargs['gridWidth'] if 'gridWidth' in kwargs else args[0][0])
+        self.gridHeight = (kwargs['gridHeight'] if 'gridHeight' in kwargs else args[0][1])
+        self.innerGridWidth = (kwargs['innerGridWidth'] if 'innerGridWidth' in kwargs else args[0][2])
+        self.innerGridHeight = (kwargs['innerGridHeight'] if 'innerGridHeight' in kwargs else args[0][3])
+
+    def encode(self):
+        return [self.gridWidth, self.gridHeight, self.innerGridWidth, self.innerGridHeight ]
 
 class TrainingsElement:
     def __init__(self, trainingsSet, index):
@@ -110,7 +129,9 @@ class TrainingsElement:
 
 
 class TrainingsSet:
-    def __init__(self, semiMajorAxises, semiMinorAxises, permittivities, angles, label=None, timestamp=None):
+    def __init__(self, geometry, chargesList, semiMajorAxises, semiMinorAxises, permittivities, angles, label=None, timestamp=None):
+        self.geometry = geometry
+        self.chargesList = chargesList
         self.semiMajorAxises = semiMajorAxises
         self.semiMinorAxises = semiMinorAxises
         self.permittivities = permittivities
@@ -142,11 +163,11 @@ class TrainingsSet:
                           'semiMajorAxis':item.get_semiMajorAxis(),
                           'semiMinorAxis':item.get_semiMinorAxis(),
                           'eps':item.get_permittivity(),
-                          'permittivity_matrix':encode_ndarray(item.get_permittivity_matrix(), 64, 64),
+                          'permittivity_matrix':encode_ndarray(item.get_permittivity_matrix(), int(self.geometry.gridWidth), int(self.geometry.gridHeight)),
                           'angle':item.get_angle()
                           })
 
-        return { '__TrainingsSet__':True, 'label':self.label, 'createdAt':str(self.timestamp), 'count': self.count(), 'items':items }
+        return { '__TrainingsSet__':True, 'label':self.label, 'createdAt':str(self.timestamp), 'geometry':self.geometry, 'charges':self.chargesList, 'count': self.count(), 'items':items }
 
     def decode(self, itemsArray):
         for item in self:

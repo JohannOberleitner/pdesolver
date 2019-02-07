@@ -4,10 +4,17 @@ class ChargeDistribution:
     def __init__(self, geometry):
         self.geometry = geometry
         self.Charges = np.zeros_like(self.geometry.X)
+        self.chargesList = []
 
     def add(self, x, y, value):
         i, j = self.geometry.indexFromCoords(x, y)
         self.Charges[i, j] = value
+        self.chargesList.append((x,y,value))
+
+    def addList(self, chargesList):
+        self.chargesList = chargesList
+        for item in chargesList:
+            self.Charges[item[0], item[1]] = item[2]
 
     def get(self, column, row):
         assert column >= 0 and column <= self.geometry.numX
