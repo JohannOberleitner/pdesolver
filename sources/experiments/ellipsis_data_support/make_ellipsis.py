@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 def create_ellipsis_grid(targetWidth, targetHeight, centerX, centerY, semiAxisMajor, semiAxisMinor, permittivity=1.0, rotationAngle=0):
 
-    matrix = np.zeros( (targetWidth, targetHeight) )
+    matrix = np.zeros( (targetWidth, targetHeight))
 
     a2 = semiAxisMajor**2
     b2 = semiAxisMinor**2

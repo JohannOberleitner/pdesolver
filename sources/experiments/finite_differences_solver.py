@@ -1,11 +1,14 @@
 import sys, getopt
+import time
+
+import numpy as np
 
 import json
 
 from sources.experiments.data_generation.results_data import ResultsSet, ResultsSetEncoder, as_ResultsSet
 from sources.experiments.data_generation.trainings_data import as_TrainingsSet
 from sources.pdesolver.finite_differences_method.FiniteDifferencesSolver_V2 import GridConfiguration, \
-    FunctionGridValueProvider, FiniteDifferencesMethod3
+    FunctionGridValueProvider, FiniteDifferencesMethod3, FiniteDifferencesMethod4
 from sources.pdesolver.finite_differences_method.boundaryconditions import RectangularBoundaryCondition
 from sources.pdesolver.finite_differences_method.charge_distribution import ChargeDistribution
 from sources.pdesolver.finite_differences_method.geometry import Geometry
@@ -37,7 +40,7 @@ def generate_permittivity_function(permittivity_matrix):
         if (permittivity_matrix[i,j] == 0.0):
             return 1.0
         else:
-            return permittivity_matrix[i,j]
+            return 1.0/permittivity_matrix[i,j]
     return eps
 
 def make_finite_differences_poisson_equation_in_matter(eps):
@@ -51,6 +54,39 @@ def make_finite_differences_poisson_equation_in_matter(eps):
                                                    i, j - 1)))), 0, 0)
     return gridConfig
 
+def compareVectors(v1, v2):
+    print('Compare:v1==v2:',len(v1), len(v2))
+    delta_sum = 0.0
+    for i in range(0, len(v1)):
+        val1 = v1[i][0]
+        val2 = v2[i][0]
+        delta_sum += abs(val1-val2)
+    print('Delta:',delta_sum)
+
+def compareMatrices(m1, m2):
+    print('Compare:m1==m2', m1.shape, m2.shape)
+    delta_sum = 0.0
+    first_col = -1
+    for row in range(0, len(m1)):
+        delta_sum_row = 0.0
+        for col in range(0, len(m1[row])):
+
+            val1 = m1[row,col]
+            val2 = m2[row, col]
+            delta_v = abs(val1-val2)
+            if delta_v > 0.00001:
+                first_col = col
+            delta_sum_row += abs(val1-val2)
+
+        if (delta_sum_row > 0.0001):
+            print('Delta row:', row, delta_sum_row)
+
+            msub1 = m1[max(0, row-1):max(0, row+5), max(0, first_col-1):max(0,first_col+8)]
+            msub2 = m2[max(0, row - 1):max(0, row + 5), max(0, first_col - 1):max(0, first_col + 8)]
+            t=0
+            delta_sum += delta_sum_row
+
+    print('Delta:', delta_sum)
 
 def calcSolutions(inputDataSet):
 
@@ -64,23 +100,35 @@ def calcSolutions(inputDataSet):
 
     resultsSet = ResultsSet(label=inputDataSet.label)
 
+    start = time.clock()
+
     for dataElement in inputDataset:
         eps = generate_permittivity_function(dataElement.get_permittivity_matrix())
         gridConfig = make_finite_differences_poisson_equation_in_matter(eps)
 
-        fdm = FiniteDifferencesMethod3(g, boundaryCondition, gridConfig, charges)
+        #fdm3 = FiniteDifferencesMethod3(g, boundaryCondition, gridConfig, charges)
+        #fdm3.solve()
+        #fdm3.calcMetrices()
+
+        fdm = FiniteDifferencesMethod4(g, boundaryCondition, gridConfig, charges)
         fdm.solve()
         fdm.calcMetrices()
 
-        resultsSet.add(fdm.results)
+        #compareVectors(fdm3.bias, fdm.bias)
+        #compareMatrices(fdm3.matrix, fdm.matrix.todense())
+
+        #resultsSet.add(fdm.results)
+        resultsSet.add(fdm.values)
 
         #s = json.dumps(fdm.results.tolist())
         #print(s)
 
 
         #s = generate_text_presentation(index, dataElement, fdm.values, fdm.error)
-        print('Solved:',index)
         index = index+1
+
+    duration = time.clock() - start
+    print('Total duration for generating {0} dataset elements:{1}'.format(inputDataset.count(), duration))
 
     return resultsSet
 
@@ -132,6 +180,8 @@ def parseArguments(argv):
 
 if __name__ == '__main__':
 
+    np.set_printoptions(threshold=np.nan)
+
     inputFile, outputFile = parseArguments(sys.argv[1:])
     inputDataset = loadInputDataset(inputFile)
 
@@ -143,6 +193,9 @@ if __name__ == '__main__':
         print(terr)
     except AttributeError as aerr:
         print(aerr)
+
+    except Exception as iexcpt:
+        print(iexcpt)
 
     except:
         print("Unexpected error:", sys.exc_info()[0])

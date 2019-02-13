@@ -7,8 +7,8 @@ class Geometry:
         self.delta = delta
         self.rect = rect
 
-        numX = (int)(self.rect.width/delta) +1
-        numY = (int)(self.rect.height/delta) +1
+        numX = (int)(self.rect.width/delta) #+1
+        numY = (int)(self.rect.height/delta) #+1
         self.x = np.linspace(self.rect.x1, self.rect.x2, numX, dtype=np.double)
         self.y = np.linspace(self.rect.y1, self.rect.y2, numY, dtype=np.double)
 

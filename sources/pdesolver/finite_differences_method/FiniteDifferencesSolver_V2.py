@@ -1,4 +1,8 @@
 import numpy as np
+from scipy.sparse import dia_matrix
+from scipy.sparse.linalg import splu
+from scipy.sparse.linalg import spsolve
+
 
 class GridValueProvider:
     def __init__(self, ):
@@ -301,11 +305,11 @@ class FiniteDifferencesMethod3:
         """copy the charge distribution of the matrix (x,y) into a vector
         """
         self.bias = np.zeros(shape=(self.geometry.numX * self.geometry.numY, 1))
-        for row in range(1, self.geometry.numY - 1):
-            for col in range(1, self.geometry.numX - 1):
+        for row in range(0, self.geometry.numY):
+            for col in range(0, self.geometry.numX):
                 self.bias[self.calc1DIndex(col, row)] = self.c.get(col, row)
 
-    def indexCallback(self, col, row, colOffset, rowOffset):
+    def indexCallback(self, row, col, colOffset, rowOffset):
         """Calculates a rowIndex and columnIndex in a 2D array
         """
         rowIndex = row * self.rowElements() + col
@@ -320,7 +324,7 @@ class FiniteDifferencesMethod3:
         """
         self.matrix = np.zeros(shape=(self.geometry.numX * self.geometry.numY, self.geometry.numX * self.geometry.numY))
         self.elementCountTarget = self.geometry.numX * self.geometry.numY
-        self.elementsInRow = self.geometry.numY
+        self.elementsInRow = self.geometry.numX
         for row in range(0, self.geometry.numY):
             for col in range(0, self.geometry.numX):
                 # rowIndex is an index within a target row
@@ -334,15 +338,20 @@ class FiniteDifferencesMethod3:
     def solve(self):
         self.setupRightSideOfEquation()
         self.setupMatrices()
+
+        mm3 = self.matrix[64*30:64*30+6]
         self.valuesResult = np.linalg.solve(
-            self.matrix[1:self.geometry.numX * self.geometry.numY - 1, 1:self.geometry.numX * self.geometry.numY - 1],
-            self.bias[1:self.geometry.numX * self.geometry.numY - 1])
+            self.matrix,
+            self.bias)
+        probe = self.matrix.dot(self.valuesResult)
+
+
         self.convertToMatrix()
 
     def convertToMatrix(self):
-        for row in range(1, self.geometry.numY - 1):
-            for col in range(1, self.geometry.numX - 1):
-                rowIndex = (row - 1) * self.rowElements() + (col - 1)
+        for row in range(0, self.geometry.numY):
+            for col in range(0, self.geometry.numX):
+                rowIndex = row * self.rowElements() + col
                 # print(rowIndex, row, col)
                 self.values[col, row] = self.valuesResult[rowIndex] / 10.0
 
@@ -378,3 +387,170 @@ class FiniteDifferencesMethod3:
 
     def printValues(self):
         print(self.valuesResult)
+
+
+class FiniteDifferencesMethod4:
+    def __init__(self, geometry, boundaryCondition, gridConfiguration, c):
+        self.geometry = geometry
+        self.boundaryCondition = boundaryCondition
+        self.c = c
+        self.gridConfiguration = gridConfiguration
+        self.values = np.zeros_like(geometry.X)
+
+    def calc1DIndex(self, col, row):
+        return col + self.geometry.numX * row
+
+    def rowElements(self):
+        return self.geometry.numX
+
+    def setupRightSideOfEquation(self):
+        """copy the charge distribution of the matrix (x,y) into a vector
+        """
+        self.bias = np.zeros(shape=(self.geometry.numX * self.geometry.numY, 1))
+        for row in range(0, self.geometry.numY):
+            for col in range(0, self.geometry.numX):
+                self.bias[self.calc1DIndex(col, row)] = self.c.get(col, row)
+
+
+    def setupMatricesCSR(self):
+        """
+            https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)
+            Matrix M has NNZ entries
+            A=4(0,0) 1(0,0) 1(0,0) 1(0,0) 4(0,0) 1(0,0) 1(0,0) ...
+            Matrix IA has row+1 entries
+            IA[0] = 0
+            IA[i] = I[i] + (number of nonzero elements of i-th row in Matrix M)
+            JA[i] = column-index for A (has NNZ entries)
+
+            for our case:
+            IA.append([0, 3, 4, 8, 12, ..., ..., k+5, ... , ... l+3]
+            JA.append([0,1,64,0,1,2,65,1,2,3,66,2,3,4,67,...,0,63,64,65,64+64,...]
+
+        :return:
+        """
+
+    def setupMatrices(self):
+        """create the coefficient and boundary matrix compatible with the bias vector
+           For every point (x,y) there is a row in the matrix.
+           The entries are the coefficients of the involved matrix points
+        """
+        offsetElements = []
+        dataElements = [[] for x in range(0, len(self.gridConfiguration.valueProviders))]
+
+
+        #offsetElements.append(offset)
+        i = 0
+        for providerWithCoordinates in self.gridConfiguration.valueProviders:
+            xOffset = providerWithCoordinates['x']
+            yOffset = providerWithCoordinates['y']
+            offset = xOffset + yOffset * 64
+            offsetElements.append(offset)
+
+            if offset > 0:
+                dataElements[i] += offset * [-1.0]
+            i = i+1
+
+        for row in range(0, self.geometry.numY):
+            for col in range(0, self.geometry.numX):
+                i = 0
+                for providerWithCoordinates in self.gridConfiguration.valueProviders:
+                    dataElementsForDiagonal = dataElements[i]
+                    i = i+1
+                    #xOffset = providerWithCoordinates['x']
+                    #yOffset = providerWithCoordinates['y']
+                    provider = providerWithCoordinates['provider']
+                    #offset = xOffset + yOffset*64
+
+                    value = provider.getValue(None, row, col)
+                    dataElementsForDiagonal.append(value)
+
+        #dataElements[2][2] = 9.9
+        #dataElements[2][3] = 12.9
+        #dataElements[2][64] = 999.9
+        #dataElements[2][65] = -999.9
+
+        #dataElements[3][2] = -9.9
+        #dataElements[3][3] = -12.9
+        gridLength = self.geometry.numY * self.geometry.numX
+
+        i = 0
+        for providerWithCoordinates in self.gridConfiguration.valueProviders:
+            xOffset = providerWithCoordinates['x']
+            yOffset = providerWithCoordinates['y']
+            offset = xOffset + yOffset * 64
+
+            if offset < 0:
+                dataElements[i] += (-offset) * [-1.0]
+                del dataElements[i][0:(-offset)]
+
+            i = i + 1
+
+        for dataElement in dataElements:
+            if len(dataElement) > gridLength:
+                del dataElement[gridLength-len(dataElement):]
+
+        data = np.array(dataElements)
+        offsetData = np.array(offsetElements)
+        self.v = dia_matrix((data, offsetData), shape=(self.geometry.numX*self.geometry.numX, self.geometry.numY*self.geometry.numY))
+        xyz = self.v.toarray()
+        t = 123
+
+    def solve(self):
+        self.setupRightSideOfEquation()
+        self.setupMatrices()
+
+        #a = self.v.toarray()
+        #print(self.v.toarray())
+
+        self.matrix = self.v.tocsr()
+        B = splu(self.matrix)
+        self.valuesResult = B.solve(self.bias)
+
+        #self.valuesResult = spsolve(mymatrix, self.bias)
+
+        #probe = self.matrix.dot(self.valuesResult)
+
+        #mymatrix_dash = self.matrix.toarray()
+        #valuesResult_dash = np.linalg.solve(
+        #    mymatrix_dash,
+        #    self.bias)
+        #probe2 = mymatrix_dash.dot(self.valuesResult)
+
+        #delta_sum = 0.0
+        #for i in range(0,len(self.valuesResult)):
+        #    f1 = self.valuesResult[i]
+        #    f2 = valuesResult_dash[i]
+        #    delta_1 = f1-f2
+        #    delta_sum += abs(delta_1)
+        #
+        #print('Delta:', delta_sum)
+
+
+        self.convertToMatrix()
+
+    def convertToMatrix(self):
+        for row in range(0, self.geometry.numY):
+            for col in range(0, self.geometry.numX):
+                rowIndex = row * self.rowElements() + col
+                # print(rowIndex, row, col)
+                self.values[col, row] = self.valuesResult[rowIndex] # / 10.0
+
+    def calcMetrices(self):
+        self.error = np.zeros_like(self.geometry.X)
+        self.results = np.zeros_like(self.geometry.X)
+        self.minValue = 100.0
+        self.maxValue = -100.0
+        sumValue = 0.0
+        for row in range(0, self.geometry.numY):
+            for col in range(0, self.geometry.numX):
+
+                valueAtPoint = self.gridConfiguration.getValue(self.values, row, col)
+                errorAtPoint = valueAtPoint - self.c.get(row, col)
+                self.error[row, col] = errorAtPoint
+                self.results[row, col] = valueAtPoint
+                sumValue = sumValue + abs(valueAtPoint)
+                self.maxValue = max(self.maxValue, abs(errorAtPoint))
+                self.minValue = min(self.minValue, abs(errorAtPoint))
+
+        print('Max,Min:',self.maxValue,self.minValue)
+        print('AvgValue:', sumValue/((self.geometry.numY-2)*(self.geometry.numX-2)))
