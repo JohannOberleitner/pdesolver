@@ -1,5 +1,19 @@
 import numpy as np
 
+class Charge:
+    def __init__(self, chargeDistribution, index):
+        self.chargeDistribution = chargeDistribution
+        self.index = index
+
+    def get_x(self):
+        return self.chargeDistribution.chargesList[self.index][0]
+
+    def get_y(self):
+        return self.chargeDistribution.chargesList[self.index][1]
+
+    def get_value(self):
+        return self.chargeDistribution.chargesList[self.index][2]
+
 class ChargeDistribution:
     def __init__(self, geometry):
         self.geometry = geometry
@@ -20,7 +34,19 @@ class ChargeDistribution:
         assert column >= 0 and column <= self.geometry.numX
         assert row >= 0 and row <= self.geometry.numY
         # because numpy's meshgrid returns the arrays in different order change this here:
-        return self.Charges[row, column]
+        return self.Charges[column, row]
+
+    def __iter__(self):
+        self.index = 0
+        return self
+
+    def __next__(self):
+        if self.index < len(self.chargesList):
+            element = Charge(self, self.index)
+            self.index += 1
+            return element
+        else:
+            raise StopIteration
 
     def calcAverage(self, col, row):
         return (self.get(col + 1, row) +

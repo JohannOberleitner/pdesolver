@@ -112,7 +112,7 @@ def calcSolutions(inputDataSet):
 
         fdm = FiniteDifferencesMethod4(g, boundaryCondition, gridConfig, charges)
         fdm.solve()
-        fdm.calcMetrices()
+        #fdm.calcMetrices()
 
         #compareVectors(fdm3.bias, fdm.bias)
         #compareMatrices(fdm3.matrix, fdm.matrix.todense())

@@ -21,6 +21,10 @@ class UICallback(object):
                 #self.ndValues = np.array(self.figure1_results.resultValues[current_index])
                 x = np.linspace(0.0, 64.0, 64)
                 y = np.linspace(0.0, 64.0, 64)
+
+                #x = np.linspace(0.0, 32.0, 32)
+                #y = np.linspace(0.0, 32.0, 32)
+
                 self.figure1_X, self.figure1_Y = np.meshgrid(x,y)
             else:
                 self.figure1 = None
@@ -105,7 +109,7 @@ def loadResultsFile(file):
 
 
 def parseArguments(argv):
-    supportedOptions = "h"
+    supportedOptions = "hp:"
     supportLongOptions = []
     usage = 'render_results.py <inputfile1> <inputfile2>'
 
@@ -131,12 +135,13 @@ if __name__ == '__main__':
 
     resultsFile1 = loadResultsFile(inputFileName1)
     resultsFile2 = loadResultsFile(inputFileName2)
+    #permittivities = loadPermittivities
 
     fig = plt.figure()
 
-    permittivity_axes = None # fig.add_subplot(1, 3, 1)
-    results1_axes = fig.add_subplot(1, 2, 1, projection='3d')
-    results2_axes = fig.add_subplot(1, 2, 2, projection='3d')
+    permittivity_axes = fig.add_subplot(1, 3, 1)
+    results1_axes = fig.add_subplot(1, 3, 2, projection='3d')
+    results2_axes = fig.add_subplot(1, 3, 3, projection='3d')
 
     callback = UICallback(permittivity_axes, (results1_axes, resultsFile1), (results2_axes, resultsFile2), 0)
     callback.update(0)

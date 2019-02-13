@@ -377,7 +377,7 @@ class FiniteDifferencesMethod3:
                 self.minValue = min(self.minValue, errorAtPoint)
 
         print('Max,Min:',self.maxValue,self.minValue)
-        print('AvgValue:', sumValue/((self.geometry.numY-2)*(self.geometry.numX-2)))
+        print('AvgValue:', sumValue/((self.geometry.numY)*(self.geometry.numX)))
 
     def printBias(self):
         print(self.bias)
@@ -407,9 +407,14 @@ class FiniteDifferencesMethod4:
         """copy the charge distribution of the matrix (x,y) into a vector
         """
         self.bias = np.zeros(shape=(self.geometry.numX * self.geometry.numY, 1))
-        for row in range(0, self.geometry.numY):
-            for col in range(0, self.geometry.numX):
-                self.bias[self.calc1DIndex(col, row)] = self.c.get(col, row)
+        for charge in self.c:
+            col = charge.get_x()
+            row = charge.get_y()
+            self.bias[self.calc1DIndex(col, row)] = charge.get_value()
+
+        #for row in range(0, self.geometry.numY):
+        #    for col in range(0, self.geometry.numX):
+        #        self.bias[self.calc1DIndex(col, row)] = self.c.get(col, row)
 
 
     def setupMatricesCSR(self):
@@ -492,8 +497,6 @@ class FiniteDifferencesMethod4:
         data = np.array(dataElements)
         offsetData = np.array(offsetElements)
         self.v = dia_matrix((data, offsetData), shape=(self.geometry.numX*self.geometry.numX, self.geometry.numY*self.geometry.numY))
-        xyz = self.v.toarray()
-        t = 123
 
     def solve(self):
         self.setupRightSideOfEquation()
@@ -502,7 +505,7 @@ class FiniteDifferencesMethod4:
         #a = self.v.toarray()
         #print(self.v.toarray())
 
-        self.matrix = self.v.tocsr()
+        self.matrix = self.v.tocsc()
         B = splu(self.matrix)
         self.valuesResult = B.solve(self.bias)
 
@@ -529,11 +532,14 @@ class FiniteDifferencesMethod4:
         self.convertToMatrix()
 
     def convertToMatrix(self):
-        for row in range(0, self.geometry.numY):
-            for col in range(0, self.geometry.numX):
-                rowIndex = row * self.rowElements() + col
-                # print(rowIndex, row, col)
-                self.values[col, row] = self.valuesResult[rowIndex] # / 10.0
+
+        self.values = np.reshape(self.valuesResult, (self.geometry.numY, self.geometry.numX))
+
+        #for row in range(0, self.geometry.numY):
+        #    for col in range(0, self.geometry.numX):
+        #        rowIndex = row * self.rowElements() + col
+        #        # print(rowIndex, row, col)
+        #        self.values[col, row] = self.valuesResult[rowIndex] # / 10.0
 
     def calcMetrices(self):
         self.error = np.zeros_like(self.geometry.X)
