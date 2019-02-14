@@ -15,7 +15,6 @@ class Geometry:
         self.X, self.Y = np.meshgrid(self.x, self.y)
         self.numX = len(self.X[0])
         self.numY = len(self.X)
-        #print(self.X.shape, self.Y.shape, self.numX, self.numY)
 
     def indexFromCoords(self, x, y):
         i = (int)((x - self.rect.x1) / self.delta)

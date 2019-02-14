@@ -434,7 +434,99 @@ class FiniteDifferencesMethod4:
         :return:
         """
 
+    def appendDefaultDirichletConditions(self, dataElements, mainDiagonalIndex, count):
+        for index, dataElement in enumerate(dataElements):
+            if index == mainDiagonalIndex:
+                dataElement += count * [1.0]
+            else:
+                dataElement += count * [0.0]
+
+    def prepareSetupMatrices(self):
+        offsetElements = []
+        dataElements = [[] for x in range(0, len(self.gridConfiguration.valueProviders))]
+
+        mainDiagonalIndex = -1
+        for index, providerWithCoordinates in enumerate(self.gridConfiguration.valueProviders):
+            xOffset = providerWithCoordinates['x']
+            yOffset = providerWithCoordinates['y']
+            offset = xOffset + yOffset * self.geometry.numX
+            offsetElements.append(offset)
+
+            if offset == 0:
+                mainDiagonalIndex = index
+
+        return offsetElements, dataElements, mainDiagonalIndex
+
+    def preProcessDiagonalMatrices(self, dataElements):
+        for index, providerWithCoordinates in enumerate(self.gridConfiguration.valueProviders):
+            xOffset = providerWithCoordinates['x']
+            yOffset = providerWithCoordinates['y']
+            offset = xOffset + yOffset * self.geometry.numX
+
+            if offset > 0:
+                dataElements[index] += offset * [-1.0]
+
+    def postProcessDiagonalMatrices(self, dataElements):
+
+        for index, providerWithCoordinates in enumerate(self.gridConfiguration.valueProviders):
+            xOffset = providerWithCoordinates['x']
+            yOffset = providerWithCoordinates['y']
+            offset = xOffset + yOffset * self.geometry.numX
+
+            if offset < 0:
+                dataElements[index] += (-offset) * [-1.0]
+                del dataElements[index][0:(-offset)]
+
+        gridLength = self.geometry.numY * self.geometry.numX
+
+        for dataElement in dataElements:
+            if len(dataElement) > gridLength:
+                del dataElement[gridLength - len(dataElement):]
+
     def setupMatrices(self):
+        """create the coefficient and boundary matrix compatible with the bias vector
+           For every point (x,y) there is a row in the matrix.
+           The entries are the coefficients of the involved matrix points
+        """
+
+        offsetElements, dataElements, mainDiagonalIndex = self.prepareSetupMatrices()
+        self.preProcessDiagonalMatrices(dataElements)
+
+        # Boundary condition in 0th row
+        self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, self.geometry.numX)
+
+        for row in range(1, self.geometry.numY-1):
+
+            # Boundary condition in first column of this row
+            self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, 1)
+
+            for col in range(1, self.geometry.numX-1):
+                for index, providerWithCoordinates in enumerate(self.gridConfiguration.valueProviders):
+                    dataElementsForDiagonal = dataElements[index]
+                    #xOffset = providerWithCoordinates['x']
+                    #yOffset = providerWithCoordinates['y']
+                    provider = providerWithCoordinates['provider']
+                    #offset = xOffset + yOffset*64
+
+                    value = provider.getValue(None, row, col)
+                    dataElementsForDiagonal.append(value)
+
+            # Boundary condition in last column of this row
+            self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, 1)
+
+        # Boundary condition in last row
+        self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, self.geometry.numX)
+
+        self.postProcessDiagonalMatrices(dataElements)
+
+        gridLength = self.geometry.numY * self.geometry.numX
+
+        data = np.array(dataElements)
+        offsetData = np.array(offsetElements)
+        self.v = dia_matrix((data, offsetData), shape=(gridLength, gridLength))
+
+
+    def setupMatricesWithoutBoundaryConditions(self):
         """create the coefficient and boundary matrix compatible with the bias vector
            For every point (x,y) there is a row in the matrix.
            The entries are the coefficients of the involved matrix points
@@ -497,6 +589,7 @@ class FiniteDifferencesMethod4:
         data = np.array(dataElements)
         offsetData = np.array(offsetElements)
         self.v = dia_matrix((data, offsetData), shape=(self.geometry.numX*self.geometry.numX, self.geometry.numY*self.geometry.numY))
+
 
     def solve(self):
         self.setupRightSideOfEquation()
