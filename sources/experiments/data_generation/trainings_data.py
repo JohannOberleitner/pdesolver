@@ -156,6 +156,9 @@ class TrainingsSet:
         else:
             raise StopIteration
 
+    def get_element(self, index):
+        return TrainingsElement(self, index)
+
     def encode(self):
         items = []
         for item in self:

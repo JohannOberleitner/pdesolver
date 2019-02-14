@@ -40,7 +40,7 @@ def generate_permittivity_function(permittivity_matrix):
         if (permittivity_matrix[i,j] == 0.0):
             return 1.0
         else:
-            return 1.0/permittivity_matrix[i,j]
+            return permittivity_matrix[i,j]*100.0
     return eps
 
 def make_finite_differences_poisson_equation_in_matter(eps):

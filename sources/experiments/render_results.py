@@ -9,10 +9,13 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.widgets import Button
 
 from sources.experiments.data_generation.results_data import as_ResultsSet
+from sources.experiments.data_generation.trainings_data import as_TrainingsSet
+from sources.experiments.ellipsis_data_support.make_ellipsis import plot_ellipsis
+
 
 class UICallback(object):
 
-    def __init__(self, permittivity_axes, figure1, figure2, current_index):
+    def __init__(self, permittivity_axes, initial_data, figure1, figure2, current_index):
 
             if figure1[1] != None:
                 self.figure1 = figure1
@@ -35,6 +38,9 @@ class UICallback(object):
                 self.figure2_results = figure2[1]
             else:
                 self.figure2 = None
+
+            self.permittivity_axes = permittivity_axes
+            self.initial_data = initial_data
 
             self.current_index = current_index
             self.count = self.figure1_results.count()
@@ -62,10 +68,19 @@ class UICallback(object):
 
     def update(self, new_index):
         self.current_index = new_index
-        #self.redraw_permittivity()
+        self.redraw_permittivity()
         self.redraw_figure1()
         self.redraw_figure2()
         plt.draw()
+
+    def redraw_permittivity(self):
+        self.permittivity_axes.cla()
+        pdata = self.initial_data.get_element(self.current_index)
+        #permittivity_title = 'id = {0}, eps = {1}, \naxisMaj = {2}, axisMin = {3},\n angle={4:6.4f} '.format(
+        #    self.current_index, pdata['permittivities'][self.current_index], pdata['majorSemiAxis'][self.current_index],
+        #    pdata['minorSemiAxis'][self.current_index], pdata['angles'][self.current_index])
+        #print(permittivity_title)
+        plot_ellipsis(self.permittivity_axes, pdata.get_permittivity_matrix(), 'permittivity')
 
     def redraw_figure1(self):
         if self.figure1 != None:
@@ -107,14 +122,22 @@ def loadResultsFile(file):
     results = json.load(file, object_hook=as_ResultsSet)
     return results
 
+def loadPermittivities(file):
+    if file == None:
+        return None
+    file = open(file, mode='r')
+    results = json.load(file, object_hook=as_TrainingsSet)
+    return results
+
 
 def parseArguments(argv):
     supportedOptions = "hp:"
     supportLongOptions = []
-    usage = 'render_results.py <inputfile1> <inputfile2>'
+    usage = 'render_results.py <inputfile1> <inputfile2> ... <trainingsDataFile>'
 
     inputFile1 = None
     inputFile2 = None
+    permittivityFile = None
 
     if len(argv) == 0:
         print(usage)
@@ -124,18 +147,21 @@ def parseArguments(argv):
         inputFile1 = argv[0]
 
     if len(argv) >= 2:
-        inputFile2 = argv[1]
+        if len(argv) == 3:
+            inputFile2 = argv[1]
 
-    return inputFile1, inputFile2
+        permittivityFile = argv[-1]
+
+    return permittivityFile, inputFile1, inputFile2
 
 
 if __name__ == '__main__':
-    inputFileName1, inputFileName2 = parseArguments(sys.argv[1:])
+    permittivity_file, inputFileName1, inputFileName2 = parseArguments(sys.argv[1:])
     print(inputFileName1, inputFileName2)
 
     resultsFile1 = loadResultsFile(inputFileName1)
     resultsFile2 = loadResultsFile(inputFileName2)
-    #permittivities = loadPermittivities
+    initial_data = loadPermittivities(permittivity_file)
 
     fig = plt.figure()
 
@@ -143,7 +169,7 @@ if __name__ == '__main__':
     results1_axes = fig.add_subplot(1, 3, 2, projection='3d')
     results2_axes = fig.add_subplot(1, 3, 3, projection='3d')
 
-    callback = UICallback(permittivity_axes, (results1_axes, resultsFile1), (results2_axes, resultsFile2), 0)
+    callback = UICallback(permittivity_axes, initial_data, (results1_axes, resultsFile1), (results2_axes, resultsFile2), 0)
     callback.update(0)
 
     axnext = plt.axes([0.81, 0.0, 0.1, 0.075])

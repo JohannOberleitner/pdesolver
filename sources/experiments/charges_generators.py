@@ -17,10 +17,10 @@ def make_dipol(g):
 def make_quadrupol(g):
     charges = ChargeDistribution(g)
     charge = -1000.0
-    charges.add(8, 8, charge)
-    charges.add(8, 24, -charge)
-    charges.add(24, 8, -charge)
-    charges.add(24, 24, charge)
+    charges.add((int)(len(g.X)/4), (int)(len(g.X)/4), charge)
+    charges.add((int)(len(g.X)/4), (int)(len(g.X)/4*3), -charge)
+    charges.add((int)(len(g.X)/4*3), (int)(len(g.X)/4), -charge)
+    charges.add((int)(len(g.X)/4*3), (int)(len(g.X)/4*3), charge)
     return charges
 
 
