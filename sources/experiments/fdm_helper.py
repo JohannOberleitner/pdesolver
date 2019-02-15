@@ -23,6 +23,10 @@ def plotSurface_subplot(axes,x,y,values):
 
 def makeStandardPDEConfig():
     # this encodes the linearized PDE: -4u(i,j)+u(i+1,j)+u(i-1,j)+u(i,j+1)+u(i,j-1) = -rho(i,j)
+    # (u(i+1,j)-u(i,j))/deltaX - (u(i,j)-u(i-1,j))/deltaX +
+    # (u(i,j+1)-u(i,j))/deltaY - (u(i,j)-u(i,j-1))/deltaX =
+    # -rho(i,j)
+    #
     # u(i+1,j)-u(i,j) - (u(i,j)-u(i-1,j)) + ... (i<->j) = -rho(i,j)
     gridConfig = GridConfiguration()
     gridConfig.add(ConstantGridValueProvider(1.0), 1, 0)
