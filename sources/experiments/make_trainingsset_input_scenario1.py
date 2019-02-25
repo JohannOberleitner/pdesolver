@@ -55,7 +55,7 @@ def write_dataset(filename, trainingsSet):
 
 def generate_dataset(count, trainingsSetGeometry, charges, label):
 
-    np.set_printoptions(threshold=np.nan)
+    #np.set_printoptions(threshold=np.nan)
 
     index = 0
 
