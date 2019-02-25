@@ -100,7 +100,7 @@ def calcSolutions(inputDataSet):
 
     resultsSet = ResultsSet(label=inputDataSet.label)
 
-    start = time.clock()
+    start = time.time()
 
     for dataElement in inputDataset:
         eps = generate_permittivity_function(dataElement.get_permittivity_matrix())
@@ -127,7 +127,7 @@ def calcSolutions(inputDataSet):
         #s = generate_text_presentation(index, dataElement, fdm.values, fdm.error)
         index = index+1
 
-    duration = time.clock() - start
+    duration = time.time() - start
     print('Total duration for generating {0} dataset elements:{1}'.format(inputDataset.count(), duration))
 
     return resultsSet

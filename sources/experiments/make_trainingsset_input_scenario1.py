@@ -64,14 +64,14 @@ def generate_dataset(count, trainingsSetGeometry, charges, label):
     delta = 1.0
     g = Geometry(rect, delta)
 
-    start = time.clock()
+    start = time.time()
 
     dataset = calculate_random_parameters(count, trainingsSetGeometry, chargesList=charges.chargesList, label=label)
 
     for dataElement in dataset:
         dataElement.calc_permittivity_matrix(64,64,32,32)
 
-    duration = time.clock() - start
+    duration = time.time() - start
     print('Total duration for generating {0} dataset elements:{1}'.format(count, duration))
 
     return dataset
