@@ -180,7 +180,7 @@ def parseArguments(argv):
 
 if __name__ == '__main__':
 
-    np.set_printoptions(threshold=np.nan)
+    #np.set_printoptions(threshold=np.nan)
 
     inputFile, outputFile = parseArguments(sys.argv[1:])
     inputDataset = loadInputDataset(inputFile)
