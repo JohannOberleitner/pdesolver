@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 def create_ellipsis_grid(targetWidth, targetHeight, centerX, centerY, semiAxisMajor, semiAxisMinor, permittivity=1.0, rotationAngle=0):
 
