@@ -128,7 +128,7 @@ def calcSolutions(inputDataSet):
         index = index+1
 
     duration = time.time() - start
-    print('Total duration for generating {0} dataset elements:{1}'.format(inputDataset.count(), duration))
+    print('Total duration for solving {0} PDEs lasted :{1}'.format(inputDataset.count(), duration))
 
     return resultsSet
 

@@ -15,7 +15,7 @@ from sources.pdesolver.formula_parser.parser import Parser
 def make_pde_config(expression):
     # expr = 'f(i,2)'
 
-    # div(eps(r)*nabla(u(r)))
+    # div(eps(r)*grad(u(r)))
 
     #expr = 'eps(i+1/2,j)*(u(i+1,j)-u(i,j)) - eps(i-1/2,j)*(u(i,j)-u(i-1,j))'
     expr = '(u(i+1,j)-u(i,j)) - (u(i,j)-u(i-1,j)) + (u(i,j+1)-u(i,j)) - (u(i,j)-u(i,j-1))'
