@@ -35,7 +35,6 @@ def calc_charge_weight_matrix(geometry, charges):
     y = firstCharge[1]+16.0
     for row in range(0, geometry.numY*2):
         for col in range(0, geometry.numX*2):
-            #matrix[row, col] = 1./(1+np.sqrt( (x-col)**2 + (y-row)**2 ))
             matrix[row, col] = 1./(1.+np.sqrt( (x-col)**2 + (y-row)**2 ))
 
     return matrix
@@ -105,7 +104,7 @@ def learn(input, target):
     test_input = input[train_count+validation_count:]
     test_result = target[train_count+validation_count:]
 
-    epochs = 20
+    epochs = 10
 
     # 100 = train=60%+validation=20%+test=20%
     model = models.Sequential()
@@ -126,16 +125,16 @@ def learn(input, target):
     #model.add(layers.Conv2DTranspose(16, (5, 5), activation='relu'))
     #model.add(layers.Dense(1, activation='sigmoid'))
 
-    modela = models.Sequential()
-    modela.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(64, 64, 1)))
-    modela.add(layers.Conv2D(32, (11,11), activation='relu'))
-    modela.add(layers.Conv2D(64, (5, 5), activation='relu'))
-    modela.add(layers.Conv2D(64, (5, 5), activation='relu'))
-    modela.add(layers.Conv2D(64, (3, 3), activation='relu'))
-    modela.add(layers.Conv2D(128, (3, 3), activation='relu'))
-    modela.add(layers.Conv2D(64, (1, 1), activation='relu'))
-    modela.add(layers.Conv2D(1, (1, 1), activation='relu'))
-    modela.summary()
+    model = models.Sequential()
+    model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(64, 64, 1)))
+    model.add(layers.Conv2D(32, (11,11), activation='relu'))
+    model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+    model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+    model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    model.summary()
 
     # model.add(layers.Conv2D(16,(11,11), activation='relu', input_shape=(32,32,1)))
     # model.add(layers.Conv2D(64,(5,5), activation='relu'))
@@ -160,33 +159,28 @@ def learn(input, target):
     #losses.mean_squared_logarithmic_error
     #loss = 'binary_crossentropy'
 
-    import keras.backend as K
-    def dice_coeff(y_true, y_pred, smooth, thresh):
-        print(y_true.shape, y_pred.shape)
-        result = K.sqrt(K.sum(K.square(y_pred) - K.square(y_true)))
-        return result
-
-
-
-    def pde_loss(smooth, thresh):
-        def dice(y_true, y_pred):
-            return -dice_coeff(y_true, y_pred, smooth, thresh)
-        return dice
-    model_dice = pde_loss(smooth=1e-5, thresh=0.5)
 
     from keras.optimizers import SGD
     sgd = SGD()
     #losses.mean_squared_logarithmic_error
-    modela.compile(optimizer=sgd,loss='mse',
+    model.compile(optimizer=sgd,loss='mse',
                    metrics=['mse'])
 
 
-    history = modela.fit(x=train_input, y=train_result, epochs=epochs,
+    history = model.fit(x=train_input, y=train_result, epochs=epochs,
               batch_size=1,
               validation_data=(validation_input, validation_result)
               )
 
-    test_predicted = modela.predict(test_input)
+    test_predicted = model.predict(test_input)
+
+    model_json = model.to_json()
+    with open("pde-charges-model.json", "w") as json_file:
+        json_file.write(model_json)
+    json_file.close()
+    model.save_weights("pde-charges-model.h5")
+
+
 
     return history, test_input, test_predicted, test_result
 
@@ -239,7 +233,7 @@ if __name__ == '__main__':
     for i in range(count):
         charge = make_single_charge(g, x[i], y[i], -10)
 
-        charges_weight_matrix = calc_charge_weight_matrix_orig(g, charge)
+        charges_weight_matrix = calc_charge_weight_matrix(g, charge)
         charges[i] = charges_weight_matrix
 
         result_matrix = solvePDE(g, charge)
