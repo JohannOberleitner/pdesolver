@@ -6,6 +6,10 @@ def make_central_charge(geometry):
     charges.add(len(geometry.X)//2, len(geometry.Y)//2, -10.0)
     return charges
 
+def make_single_charge(geometry, x, y, value):
+    charges = ChargeDistribution(geometry)
+    charges.add((int)(len(geometry.X) * x), (int)(len(geometry.Y) * y), value)
+    return charges
 
 def make_dipol(g):
     charges = ChargeDistribution(g)
