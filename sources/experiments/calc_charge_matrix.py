@@ -90,6 +90,12 @@ def solvePDE(geometry, charges):
 
     return resulting_matrix
 
+def saveModel(model, filename):
+    model_json = model.to_json()
+    with open(filename + '.json', "w") as json_file:
+        json_file.write(model_json)
+    json_file.close()
+    model.save_weights(filename + '.h5')
 
 def learn(input, target):
 
@@ -108,24 +114,6 @@ def learn(input, target):
 
     # 100 = train=60%+validation=20%+test=20%
     model = models.Sequential()
-    #model.add(layers.Conv2D(32,(11,11), activation='relu', input_shape=(32,32,1)))
-    #model.add(layers.Conv2D(64,(7,7), activation='relu'))
-    #model.add(layers.Conv2D(96,(5, 5), activation='relu'))
-    #model.add(layers.Conv2DTranspose(48, (7,7), activation='relu'))
-    #model.add(layers.Conv2DTranspose(16, (5, 5), activation='relu'))
-    #model.add(layers.Conv2DTranspose(16, (11, 11), activation='relu'))
-    #model.add(layers.Conv2DTranspose(16, (3, 3), activation='relu'))
-    #model.add(layers.Conv2D(16, (3,3), activation='relu'))
-    #model.add(layers.Dense(1, activation='sigmoid'))
-
-    #model.add(layers.Conv2D(32,(3,3), activation='relu', input_shape=(32,32,1)))
-    #model.add(layers.Conv2D(32,(5,5), activation='relu'))
-    #model.add(layers.Conv2D(64,(5, 5), activation='relu'))
-    #model.add(layers.Conv2DTranspose(48, (7,7), activation='relu'))
-    #model.add(layers.Conv2DTranspose(16, (5, 5), activation='relu'))
-    #model.add(layers.Dense(1, activation='sigmoid'))
-
-    model = models.Sequential()
     model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(64, 64, 1)))
     model.add(layers.Conv2D(32, (11,11), activation='relu'))
     model.add(layers.Conv2D(64, (5, 5), activation='relu'))
@@ -143,22 +131,14 @@ def learn(input, target):
     # model.add(layers.Conv2D(128, (3, 3), activation='relu'))
     # model.add(layers.Conv2D(64, (1, 1), activation='relu'))
     # model.add(layers.Conv2D(1, (1, 1), activation='relu'))
-    #
-    #
-    #
-    # model.summary()
     from keras.optimizers import SGD
     #sgd = SGD(lr=0.0001, decay=1e-6, momentum=0.9, nesterov=True)
     #modela.compile(optimizer=optimizers.RMSprop(lr=1e-4),
     #              loss=losses.mean_squared_error, metrics=['accuracy'])
     #modela.compile(optimizer=sgd,
     #              loss=losses.mean_squared_error, metrics=['accuracy'])
-
-
-
     #losses.mean_squared_logarithmic_error
     #loss = 'binary_crossentropy'
-
 
     from keras.optimizers import SGD
     sgd = SGD()
@@ -174,13 +154,7 @@ def learn(input, target):
 
     test_predicted = model.predict(test_input)
 
-    model_json = model.to_json()
-    with open("pde-charges-model.json", "w") as json_file:
-        json_file.write(model_json)
-    json_file.close()
-    model.save_weights("pde-charges-model.h5")
-
-
+    #saveModel(model)
 
     return history, test_input, test_predicted, test_result
 
@@ -233,7 +207,7 @@ if __name__ == '__main__':
     for i in range(count):
         charge = make_single_charge(g, x[i], y[i], -10)
 
-        charges_weight_matrix = calc_charge_weight_matrix(g, charge)
+        charges_weight_matrix = calc_charge_weight_matrix_orig(g, charge)
         charges[i] = charges_weight_matrix
 
         result_matrix = solvePDE(g, charge)
