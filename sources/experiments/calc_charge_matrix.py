@@ -11,7 +11,7 @@ from sources.pdesolver.finite_differences_method.FiniteDifferencesSolver_V2 impo
     ConstantGridValueProvider, FiniteDifferencesMethod4
 from sources.pdesolver.finite_differences_method.boundaryconditions import RectangularBoundaryCondition
 from sources.pdesolver.finite_differences_method.geometry import Geometry
-from sources.experiments.charges_generators import make_single_charge
+from sources.experiments.charges_generators import make_single_charge, make_double_charge, make_n_fold_charge
 from sources.pdesolver.finite_differences_method.rectangle import Rectangle
 
 from keras import layers, optimizers, losses
@@ -20,19 +20,19 @@ from keras import models
 def calc_charge_weight_matrix_orig(geometry, charges):
     matrix = np.zeros(shape=(len(geometry.Y)*2,len(geometry.X)*2))
     firstCharge = charges.chargesList[0]
-    x = firstCharge[0]+16.0
-    y = firstCharge[1]+16.0
+    x = firstCharge[0]+geometry.numX/2
+    y = firstCharge[1]+geometry.numX/2
     for row in range(0, geometry.numY*2):
         for col in range(0, geometry.numX*2):
             matrix[row, col] = np.sqrt( (x-col)**2 + (y-row)**2 )
 
     return matrix
 
-def calc_charge_weight_matrix(geometry, charges):
+def calc_charge_weight_matrix(geometry, charges, index=0):
     matrix = np.zeros(shape=(len(geometry.Y)*2,len(geometry.X)*2))
-    firstCharge = charges.chargesList[0]
-    x = firstCharge[0]+16.0
-    y = firstCharge[1]+16.0
+    firstCharge = charges.chargesList[index]
+    x = firstCharge[0]+geometry.numX/2
+    y = firstCharge[1]+geometry.numX/2
     for row in range(0, geometry.numY*2):
         for col in range(0, geometry.numX*2):
             matrix[row, col] = 1./(1.+np.sqrt( (x-col)**2 + (y-row)**2 ))
@@ -55,6 +55,11 @@ def plotMatrixList(g, matrices):
         axes.append(ax)
         ax.plot_surface(g.X, g.Y, m, cmap=cm.coolwarm,
                     linewidth=0, antialiased=False)
+
+    # scale second last element to last element
+    maxZ = np.max(matrices[-1])
+    axes[-2].set_zlim(0.0, maxZ*1.1)
+
     plt.show()
 
 def create_finite_differences_configuration():
@@ -110,11 +115,15 @@ def learn(input, target):
     test_input = input[train_count+validation_count:]
     test_result = target[train_count+validation_count:]
 
-    epochs = 10
+    epochs = 100
+
+    channelCount = input.shape[-1]
+    height = input.shape[-2]
+    width = input.shape[-3]
 
     # 100 = train=60%+validation=20%+test=20%
     model = models.Sequential()
-    model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(64, 64, 1)))
+    model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(width, height, channelCount)))
     model.add(layers.Conv2D(32, (11,11), activation='relu'))
     model.add(layers.Conv2D(64, (5, 5), activation='relu'))
     model.add(layers.Conv2D(64, (5, 5), activation='relu'))
@@ -141,7 +150,7 @@ def learn(input, target):
     #loss = 'binary_crossentropy'
 
     from keras.optimizers import SGD
-    sgd = SGD()
+    sgd = SGD() # lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     #losses.mean_squared_logarithmic_error
     model.compile(optimizer=sgd,loss='mse',
                    metrics=['mse'])
@@ -154,7 +163,7 @@ def learn(input, target):
 
     test_predicted = model.predict(test_input)
 
-    #saveModel(model)
+    saveModel(model)
 
     return history, test_input, test_predicted, test_result
 
@@ -192,23 +201,30 @@ if __name__ == '__main__':
     rect = Rectangle(0, 0, gridWidth, gridHeight)
     g = Geometry(rect, delta)
 
-    count = 200
+    chargeCount = 2
+    count = 400
 
     x_areaWithoutCharge = 4.0
     y_areaWithoutCharge = 4.0
     x_positions = np.linspace(x_areaWithoutCharge, gridWidth-x_areaWithoutCharge, gridWidth-2*x_areaWithoutCharge)
     y_positions = np.linspace(y_areaWithoutCharge, gridHeight-y_areaWithoutCharge, gridHeight-2*y_areaWithoutCharge)
-    x = np.random.choice(x_positions, size=count)/gridWidth
-    y = np.random.choice(y_positions, size=count)/gridHeight
+    x = np.random.choice(x_positions, size=count*chargeCount)/gridWidth
+    y = np.random.choice(y_positions, size=count*chargeCount)/gridHeight
 
-    charges = np.zeros(shape=(count,g.numX*2,g.numY*2))
+    charges = np.zeros(shape=(count,g.numX*2,g.numY*2, chargeCount))
     results = np.zeros(shape=(count,g.numX,g.numY))
 
-    for i in range(count):
-        charge = make_single_charge(g, x[i], y[i], -10)
+    for i in range(0, count):
+        #charge = make_single_charge(g, x[i], y[i], -10)
+        charge = make_n_fold_charge(g, x, y, i, chargeCount, -10)
 
-        charges_weight_matrix = calc_charge_weight_matrix_orig(g, charge)
-        charges[i] = charges_weight_matrix
+        charges_weight_matrix = []
+        for channel in range(0, chargeCount):
+            charges_weight_matrix.append(calc_charge_weight_matrix(g, charge, channel))
+
+        charges_stacked = np.stack(charges_weight_matrix, axis=-1)
+        #charges[i] = charges_weight_matrix
+        charges[i] = charges_stacked
 
         result_matrix = solvePDE(g, charge)
         results[i] = result_matrix
@@ -218,17 +234,9 @@ if __name__ == '__main__':
     print(charges.shape)
     print(results.shape)
 
-    c = charges.reshape((count,64,64,1))
-    #c1 = c[:, 16:48, 16:48, :]
-    #'c *= -1
-    #m = np.min(c, axis=(1, 2))[:,0]
-    #for c1, m1 in zip(c, m):
-    #    print(m1.shape, m1)
-    #   c1 -= m1''
+    c = charges.reshape((count,int(gridWidth*2),int(gridHeight*2),chargeCount))
 
-    r = results.reshape((count,32,32,1))
-
-    #r = c[:,16:48,16:48,:]
+    r = results.reshape((count,int(gridWidth),int(gridHeight),1))
 
     c = c/np.max(c)
     r = r/np.max(r)
@@ -256,20 +264,14 @@ if __name__ == '__main__':
     #u1 = r.std(axis=0)
     #print(u1)
 
-    ma = np.max(c)
-    mi = np.min(c)
 
-    mar = np.max(r)
-    mir = np.min(r)
-
-    print(ma, mi, mar, mir)
 
     history, test_input, test_predicted, test_result = learn(c,r)
     #plotHistory(history)
 
     #c1 = c[:, 16:48,16:48, :]
 
-    ct = test_input[:, 16:48, 16:48, :]
+    ct = test_input[:, int(gridWidth/2):int(gridWidth/2*3), int(gridWidth/2):int(gridWidth/2*3), :]
 
     #c1 *= -1
     #m = np.min(c1, axis=(1,2))[0]
@@ -281,6 +283,12 @@ if __name__ == '__main__':
     #print(x[i], y[i], (int)(len(g.X) * x[idx]),(int)(len(g.Y) * y[idx]))
 
     #test_predicted
+
+
+    #max_numeric_solution = np.max(test_result[idx,:,:,0])
+    #max_prediced_solution = np.max(test_predicted[idx,:,:,0])
+    #scale_factor = max_prediced_solution / max_numeric_solution
+    #test_predicted[idx, :, :, 0] *= scale_factor
 
     #plotMatrixList(g, [r[idx,:,:,0], c1[idx,:,:,0]])
     plotMatrixList(g, [ct[idx,:,:,0], test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
