@@ -11,6 +11,18 @@ def make_single_charge(geometry, x, y, value):
     charges.add((int)(len(geometry.X) * x), (int)(len(geometry.Y) * y), value)
     return charges
 
+def make_double_charge(geometry, x1, y1, x2, y2, value):
+    charges = ChargeDistribution(geometry)
+    charges.add((int)(len(geometry.X) * x1), (int)(len(geometry.Y) * y1), value)
+    charges.add((int)(len(geometry.X) * x2), (int)(len(geometry.Y) * y2), value)
+    return charges
+
+def make_n_fold_charge(geometry, x, y, index, n, value):
+    charges = ChargeDistribution(geometry)
+    for i in range(n):
+        charges.add((int)(len(geometry.X) * x[index*n+i]), (int)(len(geometry.Y) * y[index*n+i]), value)
+    return charges
+
 def make_dipol(g):
     charges = ChargeDistribution(g)
     charges.add(8, 16, 200.0)
