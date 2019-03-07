@@ -115,7 +115,7 @@ def learn(input, target):
     test_input = input[train_count+validation_count:]
     test_result = target[train_count+validation_count:]
 
-    epochs = 100
+    epochs = 20
 
     channelCount = input.shape[-1]
     height = input.shape[-2]
@@ -123,14 +123,48 @@ def learn(input, target):
 
     # 100 = train=60%+validation=20%+test=20%
     model = models.Sequential()
-    model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(width, height, channelCount)))
-    model.add(layers.Conv2D(32, (11,11), activation='relu'))
-    model.add(layers.Conv2D(64, (5, 5), activation='relu'))
-    model.add(layers.Conv2D(64, (5, 5), activation='relu'))
-    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(width, height, channelCount)))
+    #model.add(layers.Conv2D(32, (11,11), activation='relu'))
+    #model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+    #model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+    #model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    #model.add(layers.Conv2D(16, (5, 5), activation='relu', input_shape=(width, height, channelCount)))
+    #model.add(layers.Conv2D(32, (5, 5), activation='relu'))
+    #model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+    #model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+    #model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    #model.add(layers.Conv2D(16, (11, 11), activation='relu', input_shape=(width, height, channelCount)))
+    #model.add(layers.Conv2D(32, (9, 9), activation='relu'))
+    #model.add(layers.Conv2D(64, (7, 7), activation='relu'))
+    #model.add(layers.Conv2D(64, (7, 7), activation='relu'))
+    #model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+    #model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    #model.add(layers.Conv2D(16, (31, 31), activation='relu', input_shape=(width, height, channelCount)))
+    #model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    #model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+    #model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    model.add(layers.Conv2D(16, (63, 63), activation='relu', input_shape=(width, height, channelCount)))
     model.add(layers.Conv2D(128, (3, 3), activation='relu'))
     model.add(layers.Conv2D(64, (1, 1), activation='relu'))
     model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
     model.summary()
 
     # model.add(layers.Conv2D(16,(11,11), activation='relu', input_shape=(32,32,1)))
@@ -151,8 +185,10 @@ def learn(input, target):
 
     from keras.optimizers import SGD
     sgd = SGD() # lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-    #losses.mean_squared_logarithmic_error
-    model.compile(optimizer=sgd,loss='mse',
+    #sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
+    lossFn = losses.mean_squared_logarithmic_error
+    #lossFn = 'mse'
+    model.compile(optimizer=sgd,loss=lossFn,
                    metrics=['mse'])
 
 
@@ -163,7 +199,7 @@ def learn(input, target):
 
     test_predicted = model.predict(test_input)
 
-    saveModel(model)
+    #saveModel(model)
 
     return history, test_input, test_predicted, test_result
 
@@ -196,8 +232,8 @@ def plotHistory(history):
 if __name__ == '__main__':
 
     delta = 1.0
-    gridWidth = 32.0
-    gridHeight = 32.0
+    gridWidth = 64.0
+    gridHeight = 64.0
     rect = Rectangle(0, 0, gridWidth, gridHeight)
     g = Geometry(rect, delta)
 
