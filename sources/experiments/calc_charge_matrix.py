@@ -16,6 +16,7 @@ from sources.pdesolver.finite_differences_method.rectangle import Rectangle
 
 from keras import layers, optimizers, losses
 from keras import models
+import keras.backend as K
 
 def calc_charge_weight_matrix_orig(geometry, charges):
     matrix = np.zeros(shape=(len(geometry.Y)*2,len(geometry.X)*2))
@@ -35,9 +36,39 @@ def calc_charge_weight_matrix(geometry, charges, index=0):
     y = firstCharge[1]+geometry.numX/2
     for row in range(0, geometry.numY*2):
         for col in range(0, geometry.numX*2):
-            matrix[row, col] = 1./(1.+np.sqrt( (x-col)**2 + (y-row)**2 ))
+            matrix[row, col] = 1./(1.2+np.sqrt( (x-col)**2 + (y-row)**2 ))
 
     return matrix
+
+def calc_charge_weight_matrix_multi(geometry, charges):
+    matrix = np.zeros(shape=(len(geometry.Y)*2,len(geometry.X)*2))
+
+    multiplier = 1
+    for charge in charges.chargesList:
+        x = charge[0] + geometry.numX/2
+        y = charge[1] + geometry.numY/2
+
+        if charge[2] < 0:
+            multiplier = 1
+        else:
+            multiplier = -1
+
+        if multiplier == 1:
+            for row in range(0, geometry.numY*2):
+                for col in range(0, geometry.numX*2):
+                    #matrix[row, col] += np.sqrt((x - col) ** 2 + (y - row) ** 2)
+                   matrix[row, col] += 1./(1.2+np.sqrt( (x-col)**2 + (y-row)**2 ))
+        else:
+            for row in range(0, geometry.numY*2):
+                for col in range(0, geometry.numX*2):
+                    #matrix[row, col] += np.sqrt((x - col) ** 2 + (y - row) ** 2)
+                   matrix[row, col] -= 1./(1.2+np.sqrt( (x-col)**2 + (y-row)**2 ))
+
+        multiplier *= -1
+
+
+    return matrix
+
 
 def plotChargesWeightMatrix(matrix):
 
@@ -74,7 +105,8 @@ def create_finite_differences_configuration():
 
 def solvePDE(geometry, charges):
 
-    g = Geometry(rect, delta)
+    #g = Geometry(rect, delta)
+    g = geometry
     boundaryCondition = RectangularBoundaryCondition(geometry)
 
     index = 1
@@ -114,8 +146,6 @@ def learn(input, target):
     validation_result = target[train_count:train_count+validation_count]
     test_input = input[train_count+validation_count:]
     test_result = target[train_count+validation_count:]
-
-    epochs = 20
 
     channelCount = input.shape[-1]
     height = input.shape[-2]
@@ -160,10 +190,24 @@ def learn(input, target):
     #model.add(layers.Conv2D(64, (1, 1), activation='relu'))
     #model.add(layers.Conv2D(1, (1, 1), activation='relu'))
 
-    model.add(layers.Conv2D(16, (63, 63), activation='relu', input_shape=(width, height, channelCount)))
+    # model.add(layers.Conv2D(16, (63, 63), activation='relu', input_shape=(width, height, channelCount)))
+    # model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+    # model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+    # model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    model.add(layers.Conv2D(16, (31, 31), activation='relu', input_shape=(width, height, channelCount)))
     model.add(layers.Conv2D(128, (3, 3), activation='relu'))
     model.add(layers.Conv2D(64, (1, 1), activation='relu'))
     model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    #model.add(layers.Conv2D(128, (31, 31), activation='relu', input_shape=(width, height, channelCount)))
+    #model.add(layers.Conv2D(512, (2, 2), activation='relu'))
+    #model.add(layers.Conv2D(1, (2, 2), activation='relu'))
+
+    #model.add(layers.Conv2D(128, (2, 2), activation='relu'))
+    #model.add(layers.Conv2D(96, (2, 2), activation='relu'))
+    #model.add(layers.Conv2D(16, (1, 1), activation='relu'))
+    #model.add(layers.Conv2D(1, (1, 1), activation='relu'))
 
     model.summary()
 
@@ -187,10 +231,21 @@ def learn(input, target):
     sgd = SGD() # lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     #sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
     lossFn = losses.mean_squared_logarithmic_error
-    #lossFn = 'mse'
+
+    def coeff(y_true, y_pred, smooth, tresh):
+        return K.sqrt(K.sum(K.square(y_true - y_pred)*K.abs(y_true)))
+
+    def my_loss(smooth, thresh):
+        def loss1(y_true, y_pred):
+            return coeff(y_true, y_pred, smooth, thresh)
+        return loss1
+
+    lossFn = my_loss(smooth=1e-5, thresh=0.5)
+
     model.compile(optimizer=sgd,loss=lossFn,
                    metrics=['mse'])
 
+    epochs = 20
 
     history = model.fit(x=train_input, y=train_result, epochs=epochs,
               batch_size=1,
@@ -232,12 +287,13 @@ def plotHistory(history):
 if __name__ == '__main__':
 
     delta = 1.0
-    gridWidth = 64.0
-    gridHeight = 64.0
+    gridWidth = 32.0
+    gridHeight = 32.0
     rect = Rectangle(0, 0, gridWidth, gridHeight)
     g = Geometry(rect, delta)
 
-    chargeCount = 2
+    chargeCount = 3
+    channelChargeCount = int(chargeCount)
     count = 400
 
     x_areaWithoutCharge = 4.0
@@ -247,62 +303,51 @@ if __name__ == '__main__':
     x = np.random.choice(x_positions, size=count*chargeCount)/gridWidth
     y = np.random.choice(y_positions, size=count*chargeCount)/gridHeight
 
-    charges = np.zeros(shape=(count,g.numX*2,g.numY*2, chargeCount))
+    charges = np.zeros(shape=(count,g.numX*2,g.numY*2, channelChargeCount))
     results = np.zeros(shape=(count,g.numX,g.numY))
 
     for i in range(0, count):
         #charge = make_single_charge(g, x[i], y[i], -10)
-        charge = make_n_fold_charge(g, x, y, i, chargeCount, -10)
+        charge = make_n_fold_charge(g, x, y, i, chargeCount, -10, variateSign=False)
 
         charges_weight_matrix = []
         for channel in range(0, chargeCount):
             charges_weight_matrix.append(calc_charge_weight_matrix(g, charge, channel))
+        #charges_weight_matrix.append(calc_charge_weight_matrix_multi(g, charge))
 
         charges_stacked = np.stack(charges_weight_matrix, axis=-1)
-        #charges[i] = charges_weight_matrix
         charges[i] = charges_stacked
 
         result_matrix = solvePDE(g, charge)
         results[i] = result_matrix
 
-    #plotMatrixList(g, [result_matrix, charges_weight_matrix])
-
     print(charges.shape)
     print(results.shape)
 
-    c = charges.reshape((count,int(gridWidth*2),int(gridHeight*2),chargeCount))
-
+    c = charges.reshape((count,int(gridWidth*2),int(gridHeight*2),channelChargeCount))
     r = results.reshape((count,int(gridWidth),int(gridHeight),1))
 
-    c = c/np.max(c)
-    r = r/np.max(r)
+    #c1 = np.min(c)
+    #r1 = np.min(r)
+
+    #c -= c1
+    #r -= r1
+
+    #c1 = np.min(c)
+    #r1 = np.min(r)
+
+    c = c / np.max(c)
+    r = r / np.max(r)
+
+
 
 
     ma = np.max(c)
     mi = np.min(c)
 
-    mar = np.max(r)
-    mir = np.min(r)
-
-    print(ma, mi, mar, mir)
-    #c -= c.mean(axis=0)
-    #c /= c.std(axis=0)
-    #c -= c.min(axis=0)
-
-    #r -= r.mean(axis=0)
-    l2 = np.copy(r)
-    s = l2.std(axis=0)
-    s[s == 0.] = 1.
-    #r = r / s
-    #r -= r.min(axis=0)
-
-    #r -= r.mean(axis=0)
-    #u1 = r.std(axis=0)
-    #print(u1)
-
-
-
     history, test_input, test_predicted, test_result = learn(c,r)
+
+
     #plotHistory(history)
 
     #c1 = c[:, 16:48,16:48, :]
@@ -323,10 +368,11 @@ if __name__ == '__main__':
 
     #max_numeric_solution = np.max(test_result[idx,:,:,0])
     #max_prediced_solution = np.max(test_predicted[idx,:,:,0])
-    #scale_factor = max_prediced_solution / max_numeric_solution
+    #scale_factor = max_numeric_solution / max_prediced_solution
     #test_predicted[idx, :, :, 0] *= scale_factor
 
     #plotMatrixList(g, [r[idx,:,:,0], c1[idx,:,:,0]])
-    plotMatrixList(g, [ct[idx,:,:,0], test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
-    #idx+=1
     #plotMatrixList(g, [ct[idx,:,:,0], test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
+    #idx+=1
+
+    plotMatrixList(g, [ct[idx,:,:,0], test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
