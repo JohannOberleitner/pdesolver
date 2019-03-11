@@ -17,10 +17,13 @@ def make_double_charge(geometry, x1, y1, x2, y2, value):
     charges.add((int)(len(geometry.X) * x2), (int)(len(geometry.Y) * y2), value)
     return charges
 
-def make_n_fold_charge(geometry, x, y, index, n, value):
+def make_n_fold_charge(geometry, x, y, index, n, value, variateSign=False):
     charges = ChargeDistribution(geometry)
     for i in range(n):
         charges.add((int)(len(geometry.X) * x[index*n+i]), (int)(len(geometry.Y) * y[index*n+i]), value)
+        if variateSign:
+            value *= -1
+
     return charges
 
 def make_dipol(g):
