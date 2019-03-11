@@ -489,34 +489,44 @@ class FiniteDifferencesMethod4:
            The entries are the coefficients of the involved matrix points
         """
 
+        # dataElements is an (initially) empty array of 5 lists - for each diagonal in the coefficient matrix
+        # for 3D dataElements would have 7 lists
+        # offsetElements defines the offset for each list within each row (+1,-1,+n,-n,0)
+        # mainDiagonalIndex references within dataElements to the main diagonal
         offsetElements, dataElements, mainDiagonalIndex = self.prepareSetupMatrices()
+
+        # appends dummy elements (with value = -1) for diagonals right of the main one
+        # for the side-diagonal just 1 element is added, for the one for the row above n elements are added
+        # this is needed because scipy.dia_matrix requires that all the diagonal elements have the same count
         self.preProcessDiagonalMatrices(dataElements)
 
-        # Boundary condition in 0th row
-        self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, self.geometry.numX)
+        # Boundary condition for row=0 (and every column)
+        # For Dirichlet conditions the value at the boundary = 0.
+        # To include this in  the equation there need to be an element in the matrix for every column
+        # Hence count=numX elements need to be added.
+        # The value for the mainDiagonal must be 1.0, for other diagonals it must be 0.0
+        self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, count=self.geometry.numX)
 
         for row in range(1, self.geometry.numY-1):
 
             # Boundary condition in first column of this row
-            self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, 1)
+            self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, count=1)
 
             for col in range(1, self.geometry.numX-1):
                 for index, providerWithCoordinates in enumerate(self.gridConfiguration.valueProviders):
-                    dataElementsForDiagonal = dataElements[index]
-                    #xOffset = providerWithCoordinates['x']
-                    #yOffset = providerWithCoordinates['y']
-                    provider = providerWithCoordinates['provider']
-                    #offset = xOffset + yOffset*64
-
-                    value = provider.getValue(None, row, col)
-                    dataElementsForDiagonal.append(value)
+                    value = providerWithCoordinates['provider'].getValue(None, row, col)
+                    dataElements[index].append(value)
 
             # Boundary condition in last column of this row
-            self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, 1)
+            self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, count=1)
 
         # Boundary condition in last row
         self.appendDefaultDirichletConditions(dataElements, mainDiagonalIndex, self.geometry.numX)
 
+        # appends dummy elements (with value = -1) for diagonals left of the main one
+        # for the side diagonal just 1 element is added, for the one for the row below n elements are added
+        # this is needed because scipy.dia_matrix requires those elements to have the proper amount of elements
+        # - additionally the first elements needed to be removed
         self.postProcessDiagonalMatrices(dataElements)
 
         gridLength = self.geometry.numY * self.geometry.numX
@@ -524,7 +534,6 @@ class FiniteDifferencesMethod4:
         data = np.array(dataElements)
         offsetData = np.array(offsetElements)
         self.v = dia_matrix((data, offsetData), shape=(gridLength, gridLength))
-
 
     def setupMatricesWithoutBoundaryConditions(self):
         """create the coefficient and boundary matrix compatible with the bias vector
@@ -595,32 +604,9 @@ class FiniteDifferencesMethod4:
         self.setupRightSideOfEquation()
         self.setupMatrices()
 
-        #a = self.v.toarray()
-        #print(self.v.toarray())
-
         self.matrix = self.v.tocsc()
         B = splu(self.matrix)
         self.valuesResult = B.solve(self.bias)
-
-        #self.valuesResult = spsolve(mymatrix, self.bias)
-
-        #probe = self.matrix.dot(self.valuesResult)
-
-        #mymatrix_dash = self.matrix.toarray()
-        #valuesResult_dash = np.linalg.solve(
-        #    mymatrix_dash,
-        #    self.bias)
-        #probe2 = mymatrix_dash.dot(self.valuesResult)
-
-        #delta_sum = 0.0
-        #for i in range(0,len(self.valuesResult)):
-        #    f1 = self.valuesResult[i]
-        #    f2 = valuesResult_dash[i]
-        #    delta_1 = f1-f2
-        #    delta_sum += abs(delta_1)
-        #
-        #print('Delta:', delta_sum)
-
 
         self.convertToMatrix()
 
