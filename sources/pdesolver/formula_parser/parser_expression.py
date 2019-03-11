@@ -21,6 +21,7 @@ class NumberExpression(ParserExpression):
 
     def __repr__(self):
         return str(self.get_value())
+
     def __str__(self):
         return str(self.get_value())
 
@@ -58,7 +59,7 @@ class InnerExpression(ParserExpression):
         return '({0})'.format(self.get_child())
 
     def __str__(self):
-        return '({0})'.format(self.get_child())
+        return '({0})'.format(str(self.get_child()))
 
 
 class FunctionCallExpression(ParserExpression):
@@ -77,6 +78,12 @@ class FunctionCallExpression(ParserExpression):
         visitor.visit_function_call(self)
 
     def __repr__(self):
+        if len(self.parameter_expr_list) == 0:
+            return '{0}()'.format(self.get_function_name())
+        else:
+            return '{0}({1})'.format(self.get_function_name(), ','.join(map(str, self.get_parameter_expr_list())))
+
+    def __str__(self):
         if len(self.parameter_expr_list) == 0:
             return '{0}()'.format(self.get_function_name())
         else:
@@ -106,7 +113,7 @@ class BinaryOperatorExpression(ParserExpression):
         return '{0} {1} {2}'.format(self.get_left_child_expr(), self.get_symbol(), self.get_right_child_expr())
 
     def __str__(self):
-        return '{0} {1} {2}'.format(self.get_left_child_expr(), self.get_symbol(), self.get_right_child_expr())
+        return '{0} {1} {2}'.format(str(self.get_left_child_expr()), self.get_symbol(), str(self.get_right_child_expr()))
 
 class UnaryOperatorExpression(ParserExpression):
 
@@ -124,5 +131,9 @@ class UnaryOperatorExpression(ParserExpression):
         visitor.visit_unary_operator(self)
 
     def __repr__(self):
-        return '{0} {1)'.format(self.get_symbol(), self.get_child_expr())
+        return '{0} {1}'.format(self.get_symbol(), self.get_child_expr())
+
+    def __str__(self):
+        return '{0} {1}'.format(self.get_symbol(), str(self.get_child_expr()))
+
 
