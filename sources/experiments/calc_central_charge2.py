@@ -13,7 +13,7 @@ from sources.pdesolver.finite_differences_method.geometry import Geometry
 from sources.pdesolver.finite_differences_method.rectangle import Rectangle
 from sources.pdesolver.formula_parser.lexer import Lexer
 from sources.pdesolver.formula_parser.parser import Parser, NumberExpression, UnaryOperatorExpression, \
-    BinaryOperatorExpression
+    BinaryOperatorExpression, VariableExpression, FunctionCallExpression, InnerExpression
 from sources.pdesolver.formula_parser.visitor import Visitor
 
 
@@ -122,10 +122,14 @@ class SimpleExpressionOptimizerVisitor(Visitor):
             assert len(self.values) == 1 and len(self.valueTypes) == 1
             valueType = self.valueTypes.pop()
             if valueType == ExpressionType.NUMBER:
-                self.result = NumberExpression(self.value.pop())
+                self.result = NumberExpression(self.values.pop())
             else:
                 self.result = self.values.pop()
         return self.result
+
+    def visit_variable(self, variable_expr):
+        self.valueTypes.append(ExpressionType.COMPLICATED)
+        self.values.append(variable_expr)
 
     def visit_number(self, number_expr):
         self.valueTypes.append(ExpressionType.NUMBER)
@@ -268,9 +272,9 @@ class FunctionCall:
     def add(self, expr):
         self.prefactorExpr = BinaryOperatorExpression(self.prefactorExpr, expr, '+')
 
-    def makeFunction(self, eps):
+    def makeFunction(self, functionDict):
         def evaluatorFn(col, row):
-            evaluator = SimpleExpressionEvaluator(variables={'i':col, 'j':row}, functions={'eps':eps})
+            evaluator = SimpleExpressionEvaluator(variables={'i':col, 'j':row}, functions=functionDict)
             self.prefactorExpr.accept(evaluator)
             return evaluator.get_result()
 
@@ -375,57 +379,343 @@ class FiniteDifferencesVisitor(Visitor):
         return gridConfig
 
 
+class Sign(Enum):
+    Plus=1,
+    Minus=2
+
+class VectorCalculusExpressionVisitor(Visitor):
+
+    def __init__(self, vectorVariableNames, dimension):
+        self.vectorVariableNames = vectorVariableNames
+        self.dimension = dimension
+        self.rewritten_expressions = []
+        self.rewritten_expressions_count = []
+        self.visitor_i_plus = RewriteFiniteDifferencesVisitor('i', sign=Sign.Plus)
+        self.visitor_j_plus = RewriteFiniteDifferencesVisitor('j', sign=Sign.Plus)
+        self.visitor_k_plus = RewriteFiniteDifferencesVisitor('k', sign=Sign.Plus)
+        self.visitor_i_minus = RewriteFiniteDifferencesVisitor('i', sign=Sign.Minus)
+        self.visitor_j_minus = RewriteFiniteDifferencesVisitor('j', sign=Sign.Minus)
+        self.visitor_k_minus = RewriteFiniteDifferencesVisitor('k', sign=Sign.Minus)
+
+    def get_result(self):
+        return self.rewritten_expressions.pop()
+
+    def getVectorCoordinateNames(self, vectorVariableName):
+        # at time being ignore all variable names
+        if self.dimension == 2:
+            return ['i', 'j']
+        elif self.dimension == 3:
+            return ['i', 'j', 'k']
+        else:
+            raise Exception('Vectors of dimension 1 or dimension > 3 not supported!')
+
+    def visit_number(self, number_expr):
+        self.rewritten_expressions.append(number_expr)
+        self.rewritten_expressions_count.append(1)
+
+    def visit_variable(self, variable_expr):
+        if variable_expr.get_name() in self.vectorVariableNames:
+            for coordinateName in self.getVectorCoordinateNames(variable_expr.get_name()):
+                self.rewritten_expressions.append(VariableExpression(coordinateName))
+            self.rewritten_expressions_count.append(self.dimension)
+        else:
+            self.rewritten_expressions.append(variable_expr)
+            self.rewritten_expressions_count.append(1)
+
+    def visit_binary_operator(self, binary_expr):
+        symbol = binary_expr.get_symbol()
+
+        binary_expr.get_left_child_expr().accept(self)
+        binary_expr.get_right_child_expr().accept(self)
+
+        right_expr = self.rewritten_expressions.pop()
+        left_expr = self.rewritten_expressions.pop()
+
+        self.rewritten_expressions.append(BinaryOperatorExpression(left_expr, right_expr, symbol))
+
+    def visit_function_call(self, function_call_expr):
+        rewritten_argument_list = []
+        for parameter in function_call_expr.get_parameter_expr_list():
+            parameter.accept(self)
+            count = self.rewritten_expressions_count.pop()
+            for i in range(count):
+                rewritten_argument_list.insert(0, self.rewritten_expressions.pop())
+
+        if function_call_expr.get_function_name() == 'grad':
+            self.visit_grad(rewritten_argument_list.pop())
+
+        elif function_call_expr.get_function_name() == 'div':
+            self.visit_div(rewritten_argument_list.pop())
+        elif function_call_expr.get_function_name() == 'rot':
+            raise Exception("rot not implemented")
+        else:
+            new_function_call_expr = FunctionCallExpression(function_call_expr.get_function_name(),rewritten_argument_list )
+            self.rewritten_expressions.append(new_function_call_expr)
+            self.rewritten_expressions_count.append(1)
+
+    def apply_finite_differences(self, operand_expr, visitor_plus, visitor_minus):
+        expr = operand_expr
+        expr.accept(visitor_plus)
+        left_expr = visitor_plus.get_result()
+        expr.accept(visitor_minus)
+        right_expr = visitor_minus.get_result()
+        return BinaryOperatorExpression(left_expr, right_expr, '-')
+
+    def visit_div(self, operand_expr):
+        # TODO: split on all u functions and combine them
+        # TODO: do for eps as well
+
+        #expr_coord_i = operand_expr.get_parameter_expr_list()[0]
+        expr_coord_i = operand_expr
+        expr_i = self.apply_finite_differences(expr_coord_i, self.visitor_i_plus, self.visitor_i_minus)
+
+        expr_coord_j = operand_expr
+        expr_j = self.apply_finite_differences(expr_coord_j, self.visitor_j_plus, self.visitor_j_minus)
+
+
+        # expr_coord_k = operand.get_parameter_expr_list()[2]
+
+        expr = BinaryOperatorExpression(expr_i, expr_j, '+')
+
+        self.rewritten_expressions.append(expr)
+        self.rewritten_expressions_count.append(1)
+
+    def visit_grad(self, operand_expr):
+
+        expr_i = self.apply_finite_differences(operand_expr, self.visitor_i_plus, self.visitor_i_minus)
+        expr_j = self.apply_finite_differences(operand_expr, self.visitor_j_plus, self.visitor_j_minus)
+
+        expr = FunctionCallExpression('gradHelper', [expr_i, expr_j])
+
+        self.rewritten_expressions.append(expr)
+        self.rewritten_expressions_count.append(1)
+
+        # u(i,j) -> (u(i+1/2,j) - u(i-1/2,j)) + (u(i,j+1/2) - u(i,j-1/2)
+
+class RewriteFiniteDifferencesVisitor(Visitor):
+
+    def __init__(self, variableName, sign):
+        self.variableName = variableName
+        self.sign = sign
+        self.rewritten_expressions = []
+
+    def get_result(self):
+        return self.rewritten_expressions.pop()
+
+    def visit_variable(self, variable_expr):
+        if variable_expr.get_name() == self.variableName:
+            if self.sign == Sign.Plus:
+                expr = BinaryOperatorExpression(variable_expr,
+                    BinaryOperatorExpression(NumberExpression(1.0), NumberExpression(2.0), '/'),'+')
+            elif self.sign == Sign.Minus:
+                expr = BinaryOperatorExpression(variable_expr,
+                                                BinaryOperatorExpression(NumberExpression(1.0), NumberExpression(2.0),
+                                                                         '/'), '-')
+            else:
+                raise Exception("Invalid Sign")
+            self.rewritten_expressions.append(expr)
+        else:
+            self.rewritten_expressions.append(variable_expr)
+
+    def visit_function_call(self, function_call_expr):
+        rewritten_argument_list = []
+
+        if function_call_expr.get_function_name() == 'gradHelper':
+            for i,parameter in enumerate(function_call_expr.get_parameter_expr_list()):
+                if i==0 and self.variableName == 'i':
+                    parameter.accept(self)
+                    paramExpr = self.rewritten_expressions.pop()
+                elif i==1 and self.variableName == 'j':
+                    parameter.accept(self)
+                    paramExpr = self.rewritten_expressions.pop()
+                elif i == 2 and self.variableName == 'k':
+                    parameter.accept(self)
+                    paramExpr = self.rewritten_expressions.pop()
+                else:
+                    pass
+
+            self.rewritten_expressions.append(paramExpr)
+        else:
+
+            for parameter in function_call_expr.get_parameter_expr_list():
+                parameter.accept(self)
+                rewritten_argument_list.append(self.rewritten_expressions.pop())
+
+            new_function_call_expr = FunctionCallExpression(function_call_expr.get_function_name(),
+                                                        rewritten_argument_list)
+            self.rewritten_expressions.append(new_function_call_expr)
+
+    def visit_binary_operator(self, binary_expr):
+        symbol = binary_expr.get_symbol()
+
+        binary_expr.get_left_child_expr().accept(self)
+        binary_expr.get_right_child_expr().accept(self)
+
+        right_expr = self.rewritten_expressions.pop()
+        left_expr = self.rewritten_expressions.pop()
+
+        self.rewritten_expressions.append(BinaryOperatorExpression(left_expr, right_expr, symbol))
+
+    def visit_unary_operator(self, unary_expr):
+        symbol = unary_expr.get_symbol()
+        unary_expr.get_child_expr().accept(self)
+
+        child_expr = self.rewritten_expressions.pop()
+        self.rewritten_expressions.append(UnaryOperatorExpression(child_expr, symbol))
+
+    def visit_number(self, number_expr):
+        self.rewritten_expressions.append(number_expr)
+
+    def visit_child_expression(self, child_expr):
+        child_expr.accept(self)
+        new_child = self.rewritten_expressions.pop()
+        self.rewritten_expressions.append(InnerExpression(new_child))
+
+
+class PDEExpressionType(Enum):
+    NONE = 0
+    FINITE_DIFFERENCES = 1,
+    VECTOR_CALCULUS = 2
+
+class PDE:
+
+    def __init__(self, gridWidth, gridHeight):
+        self.gridWidth = gridWidth
+        self.gridHeight = gridHeight
+        self.delta = 1.0
+        self.rect = Rectangle(0, 0, gridWidth, gridHeight)
+        self.geometry = Geometry(self.rect, self.delta)
+        self.boundaryCondition = RectangularBoundaryCondition(self.geometry)
+        self.auxiliaryFunctions = {}
+
+    def setEquationExpression(self, expressionType, expressionString):
+        self.expressionType = expressionType
+        lexer = Lexer(expressionString)
+        l = list(lexer.parse())
+        parser = Parser(l)
+        self.expression = parser.parse()
+
+    def setVectorVariable(self, vectorVariableName, dimension=2):
+        if self.expressionType != PDEExpressionType.VECTOR_CALCULUS:
+            raise Exception("Expression type must be set to VECTOR_EXPRESSION")
+
+        self.vectorVariableName = vectorVariableName
+        self.dimension = dimension
+
+    def setAuxiliaryFunctions(self, functionDictionary):
+        self.auxiliaryFunctions = functionDictionary
+
+    def configureGrid(self):
+        if self.expressionType == PDEExpressionType.NONE:
+            raise Exception("Expression not set")
+
+        if self.expressionType == PDEExpressionType.VECTOR_CALCULUS:
+            finiteDifferencesExpression = self.evaluateVectorCalculusExpression(self.expression)
+            self.configureFiniteDifferences(finiteDifferencesExpression)
+        else:
+            self.configureFiniteDifferences(self.expression)
+
+    def evaluateVectorCalculusExpression(self, vectorCalculusExpression):
+        visitor = VectorCalculusExpressionVisitor([self.vectorVariableName], self.dimension)
+        vectorCalculusExpression.accept(visitor)
+        finiteDifferencesExpression = visitor.get_result()
+        return finiteDifferencesExpression
+
+    def configureFiniteDifferences(self, finiteDifferencesExpression):
+        visitor = FiniteDifferencesVisitor()
+        finiteDifferencesExpression.accept(visitor)
+        visitor.combineExpressions()
+        visitor.simplifyExpressions()
+        self.gridConfig = visitor.make_grid_config(self.auxiliaryFunctions)
+
+
+    # TODO: replace charges -> rightSide
+    def solve(self, charges):
+
+        start = time.time()
+
+        fdm = FiniteDifferencesMethod4(self.geometry, self.boundaryCondition, self.gridConfig, charges)
+        fdm.solve()
+
+        resulting_matrix = fdm.values
+
+        self.duration = time.time() - start
+        #print('Total duration for solving the PDE lasted {0} sec'.format(duration))
+        return resulting_matrix
+
 def eps(params):
     col = params[0] #i
     row = params[1] #j
-    return col+row
+    if (col > 10 and col < 54 and row > 10 and row < 54): # and (col < 28 or col > 36) and (row < 28 or row > 36):
+        if col > 15 and row > 15 and col < 49 and row < 48:
+            if col > 25 and row > 25 and col < 39 and row < 39:
+                return 10.0
+            else:
+                return 3.0
+        else:
+            return 20.0
+    else:
+        return 1.0
 
-def make_pde_config(expression):
-    # expr = 'f(i,2)'
 
-    # div( eps(r)*grad u(r) )
+def setupPDE_finite_differences():
+    # 1. Finite Differences without aux function eps
+    pde = PDE(64.0, 64.0)
+    pde.setEquationExpression(PDEExpressionType.FINITE_DIFFERENCES,
+                              '(u(i+1,j)-u(i,j)) - (u(i,j)-u(i-1,j)) + (u(i,j+1)-u(i,j)) - (u(i,j)-u(i,j-1))')
+    pde.configureGrid()
+    return pde
 
-    expression = 'eps(i+1/2,j)*(u(i+1,j)-u(i,j)) - eps(i-1/2,j)*(u(i,j)-u(i-1,j)) + ' + \
-           'eps(i,j+1/2)*(u(i,j+1)-u(i,j)) - eps(i,j-1/2)*(u(i,j)-u(i,j-1))'
-    #expr = '(u(i+1,j)-u(i,j)) - (u(i,j)-u(i-1,j)) + (u(i,j+1)-u(i,j)) - (u(i,j)-u(i,j-1))'
+def setupPDE_finite_differences_with_eps():
+    # 2. Finite Differences with aux function eps
+    pde = PDE(64.0, 64.0)
+    pde.setEquationExpression(PDEExpressionType.FINITE_DIFFERENCES,
+                               'eps(i+1/2,j)*(u(i+1,j)-u(i,j)) - eps(i-1/2,j)*(u(i,j)-u(i-1,j)) + ' + \
+                               'eps(i,j+1/2)*(u(i,j+1)-u(i,j)) - eps(i,j-1/2)*(u(i,j)-u(i,j-1))')
+    pde.setAuxiliaryFunctions({'eps':eps})
+    pde.configureGrid()
+    return pde
 
-    lexer = Lexer(expression)
-    l = list(lexer.parse())
-    parser = Parser(l)
-    expr = parser.parse()
+def setupPDE_vector_calculus():
+    # 3. Equation as vector calculus without aux function eps
+    pde = PDE(64.0, 64.0)
+    pde.setEquationExpression(PDEExpressionType.VECTOR_CALCULUS, "div(grad( u(r) ))")
+    pde.setVectorVariable("r", dimension=2)
+    pde.configureGrid()
+    return pde
 
-    visitor = FiniteDifferencesVisitor()
+def setupPDE_vector_calculus_with_eps():
+    # 4. Equation as vector calculus with aux function eps
+    pde = PDE(64.0, 64.0)
+    pde.setEquationExpression(PDEExpressionType.VECTOR_CALCULUS, "div(eps(r) * grad( u(r) ))")
+    pde.setVectorVariable("r", dimension=2)
+    pde.setAuxiliaryFunctions({'eps': eps})
+    pde.configureGrid()
+    return pde
 
-    expr.accept(visitor)
-    visitor.combineExpressions()
-    visitor.simplifyExpressions()
-
-    return visitor.make_grid_config(eps)
 
 if __name__ == '__main__':
 
-    delta = 1.0
-    rect = Rectangle(0, 0, 64.0, 64.0)
+    pdeNr = 1
 
-    g = Geometry(rect, delta)
-    print(g.numX, g.numY)
+    pde = None
 
-    gridConfig = make_pde_config('(u(i+1,j)-u(i,j)) - (u(i,j)-u(i-1,j)) + (u(i,j+1)-u(i,j)) - (u(i,j)-u(i,j-1))')
+    if pdeNr == 1:
+        pde = setupPDE_finite_differences()
+    elif pdeNr == 2:
+        pde = setupPDE_finite_differences_with_eps()
+    elif pdeNr == 3:
+        pde = setupPDE_vector_calculus()
+    elif pdeNr == 4:
+        pde = setupPDE_vector_calculus_with_eps()
+    else:
+        raise Exception("Invalid pdeNr:"+pdeNr)
 
-    charges = make_central_charge(g)
-
-    start = time.clock()
-    duration = time.clock() - start
-
-    #fdm = solve_finite_differences(g, boundaryCondition, charges)
-    resulting_matrix = solvePDE(g, charges, gridConfig)
-
-    print(duration)
-
-
+    charges = make_central_charge(pde.geometry)
+    resulting_matrix = pde.solve(charges)
 
     showGraph = 1
 
     if showGraph:
-        plotSurface(g.X, g.Y, resulting_matrix)
+        plotSurface(pde.geometry.X, pde.geometry.Y, resulting_matrix)
         plt.show()
