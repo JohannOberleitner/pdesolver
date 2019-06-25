@@ -240,12 +240,12 @@ def learn(input, target):
             return coeff(y_true, y_pred, smooth, thresh)
         return loss1
 
-    lossFn = my_loss(smooth=1e-5, thresh=0.5)
+    #lossFn = my_loss(smooth=1e-5, thresh=0.5)
 
     model.compile(optimizer=sgd,loss=lossFn,
                    metrics=['mse'])
 
-    epochs = 20
+    epochs = 10
 
     history = model.fit(x=train_input, y=train_result, epochs=epochs,
               batch_size=1,
@@ -375,4 +375,6 @@ if __name__ == '__main__':
     #plotMatrixList(g, [ct[idx,:,:,0], test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
     #idx+=1
 
-    plotMatrixList(g, [ct[idx,:,:,0], test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
+    diff = test_predicted[idx,:,:,0] - test_result[idx,:,:,0]
+
+    plotMatrixList(g, [diff, test_predicted[idx,:,:,0], test_result[idx,:,:,0]])
