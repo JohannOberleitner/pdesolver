@@ -15,6 +15,7 @@ from sources.pdesolver.formula_parser.lexer import Lexer
 from sources.pdesolver.formula_parser.parser import Parser, NumberExpression, UnaryOperatorExpression, \
     BinaryOperatorExpression, VariableExpression, FunctionCallExpression, InnerExpression
 from sources.pdesolver.formula_parser.visitor import Visitor
+from sources.pdesolver.pde.PDE import PDEExpressionType, PDE
 
 
 def solvePDE(geometry, charges, gridConfig):
@@ -34,78 +35,78 @@ def solvePDE(geometry, charges, gridConfig):
 
     return resulting_matrix
 
-class SimpleExpressionEvaluator(Visitor):
-
-    def __init__(self, variables, functions={}):
-        self.values = []
-        self.variables = variables
-        self.functions = functions
-        self.result = None
-
-    def get_result(self):
-        if self.result is None:
-            self.result = self.values.pop()
-        return self.result
-
-    def visit_number(self, number_expr):
-        self.values.append(number_expr.get_value())
-
-    def visit_function_call(self, function_call_expr):
-        parameter_values = []
-        for parameter in function_call_expr.get_parameter_expr_list():
-            parameter.accept(self)
-            parameter_values.append(self.values.pop())
-
-        function_name = function_call_expr.get_function_name()
-        if function_name in self.functions:
-            fn = self.functions[function_name]
-            function_result = fn(parameter_values)
-            self.values.append(function_result)
-        else:
-            raise Exception("Function not provided for evaluation:" + function_name)
-
-    def visit_variable(self, variable_expr):
-        name = variable_expr.get_name()
-        if name in self.variables:
-            self.values.append(self.variables[name])
-        else:
-            raise Exception("Variable has no value:"+name)
-
-    def visit_child_expression(self, child_expr):
-        child_expr.get_child().accept(self)
-
-    def visit_binary_operator(self, binary_expr):
-        symbol = binary_expr.get_symbol()
-
-        binary_expr.get_left_child_expr().accept(self)
-        binary_expr.get_right_child_expr().accept(self)
-
-        right_value = self.values.pop()
-        left_value = self.values.pop()
-
-        if symbol == '+':
-            self.values.append(left_value + right_value)
-        elif symbol == '-':
-            self.values.append(left_value - right_value)
-        elif symbol == '*':
-            self.values.append(left_value * right_value)
-        elif symbol == '/':
-            self.values.append(left_value / right_value)
-        else:
-            raise Exception('Unsupported operator symbol:'+symbol)
-
-    def visit_unary_operator(self, unary_expr):
-        symbol = unary_expr.get_symbol()
-        unary_expr.get_child_expr().accept(self)
-
-        child_value = self.values.pop()
-
-        if symbol == '+':
-            self.values.append(child_value)
-        elif symbol == '-':
-            self.values.append(-child_value)
-        else:
-            raise Exception('Unsupported operator symbol:' + symbol)
+# class SimpleExpressionEvaluator(Visitor):
+#
+#     def __init__(self, variables, functions={}):
+#         self.values = []
+#         self.variables = variables
+#         self.functions = functions
+#         self.result = None
+#
+#     def get_result(self):
+#         if self.result is None:
+#             self.result = self.values.pop()
+#         return self.result
+#
+#     def visit_number(self, number_expr):
+#         self.values.append(number_expr.get_value())
+#
+#     def visit_function_call(self, function_call_expr):
+#         parameter_values = []
+#         for parameter in function_call_expr.get_parameter_expr_list():
+#             parameter.accept(self)
+#             parameter_values.append(self.values.pop())
+#
+#         function_name = function_call_expr.get_function_name()
+#         if function_name in self.functions:
+#             fn = self.functions[function_name]
+#             function_result = fn(parameter_values)
+#             self.values.append(function_result)
+#         else:
+#             raise Exception("Function not provided for evaluation:" + function_name)
+#
+#     def visit_variable(self, variable_expr):
+#         name = variable_expr.get_name()
+#         if name in self.variables:
+#             self.values.append(self.variables[name])
+#         else:
+#             raise Exception("Variable has no value:"+name)
+#
+#     def visit_child_expression(self, child_expr):
+#         child_expr.get_child().accept(self)
+#
+#     def visit_binary_operator(self, binary_expr):
+#         symbol = binary_expr.get_symbol()
+#
+#         binary_expr.get_left_child_expr().accept(self)
+#         binary_expr.get_right_child_expr().accept(self)
+#
+#         right_value = self.values.pop()
+#         left_value = self.values.pop()
+#
+#         if symbol == '+':
+#             self.values.append(left_value + right_value)
+#         elif symbol == '-':
+#             self.values.append(left_value - right_value)
+#         elif symbol == '*':
+#             self.values.append(left_value * right_value)
+#         elif symbol == '/':
+#             self.values.append(left_value / right_value)
+#         else:
+#             raise Exception('Unsupported operator symbol:'+symbol)
+#
+#     def visit_unary_operator(self, unary_expr):
+#         symbol = unary_expr.get_symbol()
+#         unary_expr.get_child_expr().accept(self)
+#
+#         child_value = self.values.pop()
+#
+#         if symbol == '+':
+#             self.values.append(child_value)
+#         elif symbol == '-':
+#             self.values.append(-child_value)
+#         else:
+#             raise Exception('Unsupported operator symbol:' + symbol)
 
 # class ExpressionType(Enum):
 #     NUMBER = 0,
@@ -573,76 +574,76 @@ class SimpleExpressionEvaluator(Visitor):
 #         self.rewritten_expressions.append(InnerExpression(new_child))
 
 
-class PDEExpressionType(Enum):
-    NONE = 0
-    FINITE_DIFFERENCES = 1,
-    VECTOR_CALCULUS = 2
-
-class PDE:
-
-    def __init__(self, gridWidth, gridHeight):
-        self.gridWidth = gridWidth
-        self.gridHeight = gridHeight
-        self.delta = 1.0
-        self.rect = Rectangle(0, 0, gridWidth, gridHeight)
-        self.geometry = Geometry(self.rect, self.delta)
-        self.boundaryCondition = RectangularBoundaryCondition(self.geometry)
-        self.auxiliaryFunctions = {}
-
-    def setEquationExpression(self, expressionType, expressionString):
-        self.expressionType = expressionType
-        lexer = Lexer(expressionString)
-        l = list(lexer.parse())
-        parser = Parser(l)
-        self.expression = parser.parse()
-
-    def setVectorVariable(self, vectorVariableName, dimension=2):
-        if self.expressionType != PDEExpressionType.VECTOR_CALCULUS:
-            raise Exception("Expression type must be set to VECTOR_EXPRESSION")
-
-        self.vectorVariableName = vectorVariableName
-        self.dimension = dimension
-
-    def setAuxiliaryFunctions(self, functionDictionary):
-        self.auxiliaryFunctions = functionDictionary
-
-    def configureGrid(self):
-        if self.expressionType == PDEExpressionType.NONE:
-            raise Exception("Expression not set")
-
-        if self.expressionType == PDEExpressionType.VECTOR_CALCULUS:
-            finiteDifferencesExpression = self.evaluateVectorCalculusExpression(self.expression)
-            self.configureFiniteDifferences(finiteDifferencesExpression)
-        else:
-            self.configureFiniteDifferences(self.expression)
-
-    def evaluateVectorCalculusExpression(self, vectorCalculusExpression):
-        visitor = VectorCalculusExpressionVisitor([self.vectorVariableName], self.dimension)
-        vectorCalculusExpression.accept(visitor)
-        finiteDifferencesExpression = visitor.get_result()
-        return finiteDifferencesExpression
-
-    def configureFiniteDifferences(self, finiteDifferencesExpression):
-        visitor = FiniteDifferencesVisitor()
-        finiteDifferencesExpression.accept(visitor)
-        visitor.combineExpressions()
-        visitor.simplifyExpressions()
-        self.gridConfig = visitor.make_grid_config(self.auxiliaryFunctions)
-
-
-    # TODO: replace charges -> rightSide
-    def solve(self, charges):
-
-        start = time.time()
-
-        fdm = FiniteDifferencesMethod4(self.geometry, self.boundaryCondition, self.gridConfig, charges)
-        fdm.solve()
-
-        resulting_matrix = fdm.values
-
-        self.duration = time.time() - start
-        #print('Total duration for solving the PDE lasted {0} sec'.format(duration))
-        return resulting_matrix
+# class PDEExpressionType(Enum):
+#     NONE = 0
+#     FINITE_DIFFERENCES = 1,
+#     VECTOR_CALCULUS = 2
+#
+# class PDE:
+#
+#     def __init__(self, gridWidth, gridHeight):
+#         self.gridWidth = gridWidth
+#         self.gridHeight = gridHeight
+#         self.delta = 1.0
+#         self.rect = Rectangle(0, 0, gridWidth, gridHeight)
+#         self.geometry = Geometry(self.rect, self.delta)
+#         self.boundaryCondition = RectangularBoundaryCondition(self.geometry)
+#         self.auxiliaryFunctions = {}
+#
+#     def setEquationExpression(self, expressionType, expressionString):
+#         self.expressionType = expressionType
+#         lexer = Lexer(expressionString)
+#         l = list(lexer.parse())
+#         parser = Parser(l)
+#         self.expression = parser.parse()
+#
+#     def setVectorVariable(self, vectorVariableName, dimension=2):
+#         if self.expressionType != PDEExpressionType.VECTOR_CALCULUS:
+#             raise Exception("Expression type must be set to VECTOR_EXPRESSION")
+#
+#         self.vectorVariableName = vectorVariableName
+#         self.dimension = dimension
+#
+#     def setAuxiliaryFunctions(self, functionDictionary):
+#         self.auxiliaryFunctions = functionDictionary
+#
+#     def configureGrid(self):
+#         if self.expressionType == PDEExpressionType.NONE:
+#             raise Exception("Expression not set")
+#
+#         if self.expressionType == PDEExpressionType.VECTOR_CALCULUS:
+#             finiteDifferencesExpression = self.evaluateVectorCalculusExpression(self.expression)
+#             self.configureFiniteDifferences(finiteDifferencesExpression)
+#         else:
+#             self.configureFiniteDifferences(self.expression)
+#
+#     def evaluateVectorCalculusExpression(self, vectorCalculusExpression):
+#         visitor = VectorCalculusExpressionVisitor([self.vectorVariableName], self.dimension)
+#         vectorCalculusExpression.accept(visitor)
+#         finiteDifferencesExpression = visitor.get_result()
+#         return finiteDifferencesExpression
+#
+#     def configureFiniteDifferences(self, finiteDifferencesExpression):
+#         visitor = FiniteDifferencesVisitor()
+#         finiteDifferencesExpression.accept(visitor)
+#         visitor.combineExpressions()
+#         visitor.simplifyExpressions()
+#         self.gridConfig = visitor.make_grid_config(self.auxiliaryFunctions)
+#
+#
+#     # TODO: replace charges -> rightSide
+#     def solve(self, charges):
+#
+#         start = time.time()
+#
+#         fdm = FiniteDifferencesMethod4(self.geometry, self.boundaryCondition, self.gridConfig, charges)
+#         fdm.solve()
+#
+#         resulting_matrix = fdm.values
+#
+#         self.duration = time.time() - start
+#         #print('Total duration for solving the PDE lasted {0} sec'.format(duration))
+#         return resulting_matrix
 
 def eps(params):
     col = params[0] #i

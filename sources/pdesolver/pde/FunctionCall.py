@@ -1,6 +1,7 @@
-from sources.experiments.calc_central_charge2 import SimpleExpressionEvaluator
+
 from sources.pdesolver.formula_parser.parser_expression import NumberExpression, UnaryOperatorExpression, \
     BinaryOperatorExpression
+from sources.pdesolver.pde.SimpleExpressionEvaluator import SimpleExpressionEvaluator
 
 
 class FunctionCall:

@@ -26,6 +26,18 @@ def make_n_fold_charge(geometry, x, y, index, n, value, variateSign=False):
 
     return charges
 
+def make_n_fold_charge_from_list(geometry, charges_list, value, variateSign=False):
+    charges = ChargeDistribution(geometry)
+    for charge_tuple in charges_list:
+        column = charge_tuple[0]
+        row = charge_tuple[1]
+        charges.add((int)(len(geometry.X) * column), (int)(len(geometry.Y) * row), value)
+        if variateSign:
+            value *= -1
+
+    return charges
+
+
 def make_dipol(g):
     charges = ChargeDistribution(g)
     charges.add(8, 16, 200.0)
