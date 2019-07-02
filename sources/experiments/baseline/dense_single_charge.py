@@ -1,12 +1,70 @@
+import datetime
+import getopt
+import json
+import os
+import sys
+import time
+from math import log
+
 from keras import models, layers, losses
 import keras.backend as K
 
 from sources.experiments.charges_generators import make_central_charge, make_single_charge, make_n_fold_charge_from_list
 from sources.experiments.fdm_helper import plotSurface
+from sources.pdesolver.finite_differences_method.charge_distribution import ChargeDistribution
+from sources.pdesolver.finite_differences_method.geometry import Geometry
 from sources.pdesolver.pde.PDE import PDEExpressionType, PDE
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+class TrainingsSetConfig:
+
+    def __init__(self, gridWidth, gridHeight, architectureType, epochs, N, charges, timestamp):
+        self.gridWidth = gridWidth
+        self.gridHeight = gridHeight
+        self.architectureType = architectureType
+        self.epochs = epochs
+        self.N = N
+        self.charges = charges
+        self.timestamp = timestamp
+
+    def encode(self):
+        return {'__TrainingsSetConfig__': True, 'createdAt': str(self.timestamp), 'gridWidth': self.gridWidth,
+            'gridHeight': self.gridHeight, 'architectureType':self.architectureType, 'charges': self.charges, 'N':self.N,
+            'epochs': self.epochs,
+            'charges': self.charges }
+
+class TrainingsSetConfigEncoder(json.JSONEncoder):
+    def default(self, data):
+        if isinstance(data, TrainingsSetConfig):
+            return data.encode()
+        elif isinstance(data, ChargeDistribution):
+            return data.chargesList
+        else:
+            super().default(self, data)
+
+class TrainingsSetConfigDecoder:
+    def decode(self, json_data):
+
+        gridWidth = json_data["gridWidth"]
+        gridHeight = json_data["gridHeight"]
+        architectureType = json_data["architectureType"]
+        epochs = json_data["epochs"]
+        N = json_data["N"]
+        chargesList = json_data["charges"]
+        timestamp = json_data["createdAt"]
+        trainingsSetConfig = self.init_data(gridWidth, gridHeight, architectureType, epochs, N, chargesList, timestamp)
+        return trainingsSetConfig
+
+    def init_data(self, gridWidth, gridHeight, architectureType, epochs, N, chargesList, timestamp):
+        delta = 1.0
+        #geometry = Geometry(self.rect, delta)
+        #charges = ChargeDistribution(geometry)
+        #charges.addList(chargesList)
+        charges = [] # does not work right now
+        return TrainingsSetConfig(gridWidth, gridHeight, architectureType, N, charges)
+
 
 
 def setupPDE_vector_calculus(gridSize, equation):
@@ -138,6 +196,15 @@ class TrainingSet_CreationStrategy:
             if (index % 100) == 0:
                 print(index, ' solution set done')
 
+    def normalize_input_set(self):
+        self.input_set = self.input_set/np.max(self.input_set)
+
+    def normalize_solutions(self):
+        self.solutions = self.solutions/np.max(self.solutions)
+
+    def add_channel_axis_to_solutionSet(self):
+        self.solutions = self.solutions.reshape((self.solutions.shape[0], self.gridWidth, self.gridHeight, -1))
+
 
 class TrainingSet_CreationStrategy_Full_SingleCharge(TrainingSet_CreationStrategy):
 
@@ -221,13 +288,18 @@ class TrainingSet_CreationStrategy_N_MultiCharge(TrainingSet_CreationStrategy):
             self.charge_positions.append(charges_list)
 
 
-def make_model(gridWidth, gridHeight, charges_count):
+def make_model(architectureType, gridWidth, gridHeight, charges_count):
     model = models.Sequential()
-    model.add(layers.Dense(92, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
-    model.add(layers.Dense(128, activation='relu'))
-    model.add(layers.Dense(64, activation='relu'))
-    model.add(layers.Dense(32, activation='relu'))
-    model.add(layers.Dense(1, activation='relu'))
+
+    if architectureType == 1:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 2:
+        model.add(layers.Dense(92, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
 
     #model.add(layers.Dense(92, input_shape=(64,64,1), activation='relu'))
     #model.add(layers.Dense(512, activation='relu'))
@@ -247,7 +319,7 @@ def make_model(gridWidth, gridHeight, charges_count):
 
     return model
 
-def learn(model, train_input, train_output, validation_input, validation_output):
+def learn(model, epochs, train_input, train_output, validation_input, validation_output):
 
     from keras.optimizers import SGD
     sgd = SGD()  # lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
@@ -268,49 +340,186 @@ def learn(model, train_input, train_output, validation_input, validation_output)
     model.compile(optimizer=sgd, loss=lossFn,
                   metrics=['mse'])
 
-    epochs = 10
-
-
     history = model.fit(x=train_input, y=train_output, epochs=epochs,
                         batch_size=1,
-                        validation_data=(validation_input, validation_output)
+                        validation_data=(validation_input, validation_output),
+                        verbose=0
                         )
+
+def calc_square_error_for_matrix(matrix1, matrix2):
+    #print (len(matrix1))
+    #print (len(matrix1[0]))
+
+    sum = 0.0
+    max_value = -1.0
+
+    errors = np.zeros(shape=(len(matrix1), len(matrix1[0])))
+
+    for i in range(0, len(matrix1)):
+        for j in range(0, len(matrix1[0])):
+            errors[i,j] = (matrix1[i,j,0] - matrix2[i,j,0])**2
+
+    sum = np.sum(errors)
+    max_value = np.max(errors)
+    avg = np.average(errors)
+    mean = np.mean(errors)
+
+
+    return sum, max_value, avg, mean
+
+def calc_square_error_for_list(set1, set2):
+    comparison_errors = []
+    #print(len(set1))
+    #print(len(set2))
+
+    for index in range(0, len(set1)):
+        comparison_errors.append(calc_square_error_for_matrix(set1[index], set2[index]))
+
+    return comparison_errors
+
+def write_data_configuration(filename, trainings_configuration):
+    if filename == None:
+        s = json.dumps(trainings_configuration, cls=TrainingsSetConfigEncoder)
+        print(s)
+    else:
+        file = open(filename, 'w')
+        json.dump(trainings_configuration, file, cls=TrainingsSetConfigEncoder)
+        file.close()
+
+def saveModel(model, filename):
+    model_json = model.to_json()
+    with open(filename + '_model'+'.json', "w") as json_file:
+        json_file.write(model_json)
+    json_file.close()
+    model.save_weights(filename + '.h5')
+
+def makeFilename(directory,filename):
+    if filename == None:
+        return None
+    else:
+        return os.path.join(directory,filename)
+
+def deleteExistingFile(filepath):
+    if filepath and os.path.exists(filepath):
+        os.remove(filepath)
+
+def parseArguments(argv):
+    supportedOptions = "hd:o:N:l:e:s:a"
+    supportLongOptions = ["dir=", "ofile="]
+    usage = 'dense_single_charge.py -s <gridSize> -e <epochs> -N <count> -d <directory> -o <outputfile> -l <label>'
+
+    outputDirectory = '.'
+    outputFile = None
+    label = None
+    count = 20
+
+
+    try:
+        opts, args = getopt.getopt(argv, supportedOptions, supportLongOptions)
+    except getopt.GetoptError:
+        print(usage)
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == '-h':
+            print(usage)
+            sys.exit()
+        elif opt in ("-a"):
+            architectureType = int(arg)
+        elif opt in ("-s"):
+            gridSize = int(arg)
+        elif opt in ("-e"):
+            epochs = int(arg)
+        elif opt in ("-N"):
+            count = int(arg)
+        elif opt in ("-d", "--dir"):
+            outputDirectory = arg
+        elif opt in ("-o", "--ofile"):
+            outputFile = arg
+        elif opt in ("-l", "--label"):
+            label = arg
+
+    return outputFile, outputDirectory, gridSize, count, epochs, architectureType
 
 
 if __name__ == '__main__':
 
-    gridSize = 64.0
+    try:
+        outputFile, outputDirectory, gridSize, count, epochs, architectureType = parseArguments(sys.argv[1:])
+
+    except:
+        outputFile = 'test_data'
+        outputDirectory= '.'
+        gridSize = 64
+        count = 1000
+        epochs = 2
+        architectureType = 1
+
+    fileName = makeFilename(outputDirectory, outputFile)
+
+    print('Write output to:', os.path.abspath(fileName))
+
+    gridSize = float(gridSize)
     charges_count = 3
 
-    model = make_model((int)(gridSize), (int)(gridSize), charges_count)
+    model = make_model(architectureType, (int)(gridSize), (int)(gridSize), charges_count)
 
     poisson_equation = "div(grad( u(r) ))"
     pde = setupPDE_vector_calculus(gridSize, poisson_equation)
 
     #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
     #-> fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=1000)
-    fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=1000, charges_count=charges_count)
+    fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
 
+    start = time.time()
     fill_strategy.create_inputSet()
-    fill_strategy.create_solutionSet(pde)
+    duration = time.time() - start
+    print('duration for creating input set:', duration)
 
-    s = fill_strategy.solutions.reshape((fill_strategy.solutions.shape[0], pde.geometry.numX, (int)(pde.geometry.numY), -1))
+    fill_strategy.normalize_input_set()
+
+    start = time.time()
+    fill_strategy.create_solutionSet(pde)
+    duration = time.time() - start
+    print('duration for calculating solution set:', duration)
+
+    fill_strategy.normalize_solutions()
+    fill_strategy.add_channel_axis_to_solutionSet()
+
+    #s = fill_strategy.solutions.reshape((fill_strategy.solutions.shape[0], pde.geometry.numX, (int)(pde.geometry.numY), -1))
 
     print(fill_strategy.input_set.shape)
-    print(s.shape)
+    print(fill_strategy.solutions.shape)
 
-    train_input = fill_strategy.input_set[0:950]
-    train_output = s[0:950]
+    trainings_count = int(count * 0.9)
+    train_input = fill_strategy.input_set[0:trainings_count]
+    train_output = fill_strategy.solutions[0:trainings_count]
 
-    validation_input = fill_strategy.input_set[:-50]
-    validation_output = s[:-50]
+    validation_count = int(count * 0.05)
+    validation_input = fill_strategy.input_set[trainings_count:trainings_count+validation_count]
+    validation_output = fill_strategy.solutions[trainings_count:trainings_count+validation_count]
 
-    learn(model, train_input, train_output, validation_input, validation_output)
+    test_count = int(count * 0.05)
+    test_input = fill_strategy.input_set[trainings_count+validation_count:]
+    test_output = fill_strategy.solutions[trainings_count+validation_count:]
 
+    start = time.time()
 
-    prediction = model.predict(validation_input[0:10])
+    learn(model, epochs, train_input, train_output, validation_input, validation_output)
 
-    print(prediction.shape)
+    duration = time.time() - start
+    print('duration for learning:',  duration)
+
+    prediction = model.predict(test_input)
+
+    #print(prediction.shape)
+
+    errors = calc_square_error_for_list(test_output, prediction)
+    print(errors)
+
+    saveModel(model, fileName)
+    trainingsSetConfig = TrainingsSetConfig(gridSize, gridSize, "1", epochs, count, fill_strategy.charges, datetime.datetime.utcnow())
+    write_data_configuration(fileName, trainingsSetConfig)
 
     showGraph = 1
 
