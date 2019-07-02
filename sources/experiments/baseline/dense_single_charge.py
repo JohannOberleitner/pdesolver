@@ -27,11 +27,30 @@ class Results:
         self.learning_duration = learning_duration
         self.errors = errors
 
+        self.avg = 0.0
+        self.min_sum = sys.float_info.max
+        self.max_sum = 0.0
+        self.min_max_error = sys.float_info.max
+        self.max_max_error = 0.0
+
+        for error_tuple in errors:
+            self.min_sum = min(self.min_sum, error_tuple[0])
+            self.max_sum = max(self.max_sum, error_tuple[0])
+            self.min_max_error = min(self.min_max_error, error_tuple[1])
+            self.max_max_error = max(self.max_max_error, error_tuple[1])
+            self.avg += error_tuple[2]
+        self.avg /= len(errors)
+
     def encode(self):
         return {'__Results__': True,
                 'inputset_duration': self.inputset_duration,
                 'solutionset_duration': self.solutionset_duration,
                 'learning_duration': self.learning_duration,
+                'avg': self.avg,
+                'min_sum': self.min_sum,
+                'max_sum': self.max_sum,
+                'min_max_error': self.min_max_error,
+                'max_max_error': self.max_max_error,
                 'errors': self.errors
                 }
 
