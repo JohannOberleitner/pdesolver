@@ -18,6 +18,29 @@ from sources.pdesolver.pde.PDE import PDEExpressionType, PDE
 import numpy as np
 import matplotlib.pyplot as plt
 
+class Results:
+
+    def __init__(self, inputset_duration, solution_calculation_duration, learning_duaration, errors):
+        self.inputset_duration = inputset_duration
+        self.solutionset_duration = solution_calculation_duration
+        self.learning_duration
+        self.errors = errors
+
+    def encode(self):
+        return {'__Results__': True,
+                'inputset_duration': self.inputset_duration,
+                'solutionset_duration': self.solutionset_duration,
+                'learning_duration': self.learning_duration,
+                'errors': self.errors
+                }
+
+class ResultsEncoder(json.JSONEncoder):
+    def default(self, data):
+        if isinstance(data, Results):
+            return data.encode()
+        else:
+            super().default(self, data)
+
 class TrainingsSetConfig:
 
     def __init__(self, gridWidth, gridHeight, architectureType, epochs, N, charges, timestamp):
@@ -386,6 +409,15 @@ def write_data_configuration(filename, trainings_configuration):
         json.dump(trainings_configuration, file, cls=TrainingsSetConfigEncoder)
         file.close()
 
+def write_results(filename, results):
+    if filename == None:
+        s = json.dumps(results, cls=ResultsEncoder)
+        print(s)
+    else:
+        file = open(filename, 'w')
+        json.dump(results, file, cls=ResultsEncoder)
+        file.close()
+
 def saveModel(model, filename):
     model_json = model.to_json()
     with open(filename + '_model'+'.json', "w") as json_file:
@@ -404,9 +436,9 @@ def deleteExistingFile(filepath):
         os.remove(filepath)
 
 def parseArguments(argv):
-    supportedOptions = "hd:o:N:l:e:s:a"
+    supportedOptions = "hd:o:N:l:e:s:a:"
     supportLongOptions = ["dir=", "ofile="]
-    usage = 'dense_single_charge.py -s <gridSize> -e <epochs> -N <count> -d <directory> -o <outputfile> -l <label>'
+    usage = 'dense_single_charge.py -s <gridSize> -a <architectureType> -e <epochs> -N <count> -d <directory> -o <outputfile> -l <label>'
 
     outputDirectory = '.'
     outputFile = None
@@ -473,15 +505,15 @@ if __name__ == '__main__':
 
     start = time.time()
     fill_strategy.create_inputSet()
-    duration = time.time() - start
-    print('duration for creating input set:', duration)
+    inputset_duration = time.time() - start
+    print('duration for creating input set:', inputset_duration)
 
     fill_strategy.normalize_input_set()
 
     start = time.time()
     fill_strategy.create_solutionSet(pde)
-    duration = time.time() - start
-    print('duration for calculating solution set:', duration)
+    solutionset_duration = time.time() - start
+    print('duration for calculating solution set:', solutionset_duration)
 
     fill_strategy.normalize_solutions()
     fill_strategy.add_channel_axis_to_solutionSet()
@@ -507,8 +539,8 @@ if __name__ == '__main__':
 
     learn(model, epochs, train_input, train_output, validation_input, validation_output)
 
-    duration = time.time() - start
-    print('duration for learning:',  duration)
+    learning_duration = time.time() - start
+    print('duration for learning:',  learning_duration)
 
     prediction = model.predict(test_input)
 
@@ -520,6 +552,9 @@ if __name__ == '__main__':
     saveModel(model, fileName)
     trainingsSetConfig = TrainingsSetConfig(gridSize, gridSize, "1", epochs, count, fill_strategy.charges, datetime.datetime.utcnow())
     write_data_configuration(fileName, trainingsSetConfig)
+
+    results = Results(inputset_duration, solutionset_duration, learning_duration, errors)
+    write_results(fileName+'_results', results)
 
     showGraph = 1
 
