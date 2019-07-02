@@ -10,20 +10,21 @@ from keras import models, layers, losses
 import keras.backend as K
 
 from sources.experiments.charges_generators import make_central_charge, make_single_charge, make_n_fold_charge_from_list
-from sources.experiments.fdm_helper import plotSurface
 from sources.pdesolver.finite_differences_method.charge_distribution import ChargeDistribution
 from sources.pdesolver.finite_differences_method.geometry import Geometry
 from sources.pdesolver.pde.PDE import PDEExpressionType, PDE
 
 import numpy as np
+
+from sources.experiments.fdm_helper import plotSurface
 import matplotlib.pyplot as plt
 
 class Results:
 
-    def __init__(self, inputset_duration, solution_calculation_duration, learning_duaration, errors):
+    def __init__(self, inputset_duration, solution_calculation_duration, learning_duration, errors):
         self.inputset_duration = inputset_duration
         self.solutionset_duration = solution_calculation_duration
-        self.learning_duration
+        self.learning_duration = learning_duration
         self.errors = errors
 
     def encode(self):
