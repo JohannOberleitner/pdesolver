@@ -625,7 +625,7 @@ if __name__ == '__main__':
         outputFile = 'test_data'
         outputDirectory= '.'
         gridSize = 64
-        count = 1000
+        count = 2000
         epochs = 2
         architectureType = 1
 
@@ -642,7 +642,7 @@ if __name__ == '__main__':
     pde = setupPDE_vector_calculus(gridSize, poisson_equation)
 
     #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
-    fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=1000)
+    fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=count)
     #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
 
     start = time.time()
@@ -668,14 +668,18 @@ if __name__ == '__main__':
     trainings_count = int(count * 0.9)
     train_input = fill_strategy.input_set[0:trainings_count]
     train_output = fill_strategy.solutions[0:trainings_count]
+    print(trainings_count, train_input.shape, train_output.shape)
 
     validation_count = int(count * 0.05)
     validation_input = fill_strategy.input_set[trainings_count:trainings_count+validation_count]
     validation_output = fill_strategy.solutions[trainings_count:trainings_count+validation_count]
+    print(validation_count, validation_input.shape, validation_output.shape)
 
     test_count = int(count * 0.05)
     test_input = fill_strategy.input_set[trainings_count+validation_count:]
     test_output = fill_strategy.solutions[trainings_count+validation_count:]
+    print(test_count, test_input.shape, test_output.shape)
+
 
     start = time.time()
 
