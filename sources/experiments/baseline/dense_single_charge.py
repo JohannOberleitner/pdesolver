@@ -27,30 +27,47 @@ class Results:
         self.learning_duration = learning_duration
         self.errors = errors
 
-        self.avg = 0.0
-        self.min_sum = sys.float_info.max
-        self.max_sum = 0.0
-        self.min_max_error = sys.float_info.max
-        self.max_max_error = 0.0
+        # sum, max_value, avg, median, varianc
 
-        for error_tuple in errors:
-            self.min_sum = min(self.min_sum, error_tuple[0])
-            self.max_sum = max(self.max_sum, error_tuple[0])
-            self.min_max_error = min(self.min_max_error, error_tuple[1])
-            self.max_max_error = max(self.max_max_error, error_tuple[1])
-            self.avg += error_tuple[2]
-        self.avg /= len(errors)
+        sums = np.zeros(shape=(len(errors)))
+        max_values = np.zeros(shape=(len(errors)))
+        avgs = np.zeros(shape=(len(errors)))
+        medians = np.zeros(shape=(len(errors)))
+        variances = np.zeros(shape=(len(errors)))
+
+        for i, error_tuple in enumerate(errors):
+            sums[i] = error_tuple[0]
+            max_values[i] = error_tuple[1]
+            avgs[i] = error_tuple[2]
+            medians[i] = error_tuple[3]
+            variances[i] = error_tuple[4]
+
+        self.avg_error_avg = np.average(avgs)
+        self.avg_error_variance = np.var(avgs)
+
+        self.variances_avg = np.average(variances)
+        self.variances_variance = np.var(variances)
+
+        self.sum_error = np.average(sums)
+        self.sum_error_variance = np.var(sums)
+
+        self.max_values = np.average(max_values)
+        self.max_values_variance = np.var(max_values)
+
+        self.median_values = np.average(medians)
+        self.median_values_variance = np.var(medians)
+
 
     def encode(self):
         return {'__Results__': True,
                 'inputset_duration': self.inputset_duration,
                 'solutionset_duration': self.solutionset_duration,
                 'learning_duration': self.learning_duration,
-                'avg': self.avg,
-                'min_sum': self.min_sum,
-                'max_sum': self.max_sum,
-                'min_max_error': self.min_max_error,
-                'max_max_error': self.max_max_error,
+                'avg_error_avg': self.avg_error_avg, 'avg_error_variance':self.avg_error_variance,
+                'variances_avg': self.variances_avg, 'variances_variance':self.variances_variance,
+                'sum_error': self.sum_error, 'sum_error_variances': self.sum_error_variance,
+                'max_values': self.max_values, 'max_values_variance': self.max_values_variance,
+                'median_values': self.median_values, 'median_values_variance': self.max_values_variance,
                 'errors': self.errors
                 }
 
@@ -487,6 +504,7 @@ def learn(model, epochs, train_input, train_output, validation_input, validation
                         )
 
 def calc_square_error_for_matrix(matrix1, matrix2):
+    """ calculates errors and metrics for one solution matrix and its prediction"""
     #print (len(matrix1))
     #print (len(matrix1[0]))
 
@@ -502,10 +520,12 @@ def calc_square_error_for_matrix(matrix1, matrix2):
     sum = np.sum(errors)
     max_value = np.max(errors)
     avg = np.average(errors)
-    mean = np.mean(errors)
+    median = np.median(errors)
+    variance = np.var(errors)
 
-
-    return sum, max_value, avg, mean
+    # sum of all errors on one matrix
+    # max_value of an error on one matrix
+    return sum, max_value, avg, median, variance
 
 def calc_square_error_for_list(set1, set2):
     comparison_errors = []
