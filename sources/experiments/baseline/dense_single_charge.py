@@ -335,14 +335,111 @@ def make_model(architectureType, gridWidth, gridHeight, charges_count):
     model = models.Sequential()
 
     if architectureType == 1:
-        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
     elif architectureType == 2:
-        model.add(layers.Dense(92, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 3:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 21:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 22:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(128, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 23:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 31:
+        model.add(layers.Dense(64, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
         model.add(layers.Dense(128, activation='relu'))
         model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 32:
+        model.add(layers.Dense(64, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 33:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 34:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 34:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 35:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 41:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 42:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 43:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
         model.add(layers.Dense(32, activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 44:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 45:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(96, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 46:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 47:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 48:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(2048, activation='relu'))
+        model.add(layers.Dense(256, activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+
+
+    # model.add(layers.Dense(92, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+    # model.add(layers.Dense(128, activation='relu'))
+    # model.add(layers.Dense(64, activation='relu'))
+    # model.add(layers.Dense(32, activation='relu'))
+    # model.add(layers.Dense(1, activation='relu'))
 
     #model.add(layers.Dense(92, input_shape=(64,64,1), activation='relu'))
     #model.add(layers.Dense(512, activation='relu'))
@@ -496,6 +593,8 @@ def parseArguments(argv):
 
 if __name__ == '__main__':
 
+    charges_count = 1
+
     try:
         outputFile, outputDirectory, gridSize, count, epochs, architectureType = parseArguments(sys.argv[1:])
 
@@ -512,7 +611,7 @@ if __name__ == '__main__':
     print('Write output to:', os.path.abspath(fileName))
 
     gridSize = float(gridSize)
-    charges_count = 3
+
 
     model = make_model(architectureType, (int)(gridSize), (int)(gridSize), charges_count)
 
@@ -520,8 +619,8 @@ if __name__ == '__main__':
     pde = setupPDE_vector_calculus(gridSize, poisson_equation)
 
     #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
-    #-> fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=1000)
-    fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
+    fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=1000)
+    #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
 
     start = time.time()
     fill_strategy.create_inputSet()
