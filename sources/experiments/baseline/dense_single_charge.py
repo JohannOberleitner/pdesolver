@@ -304,8 +304,11 @@ class TrainingSet_CreationStrategy_N_SingleCharge(TrainingSet_CreationStrategy):
 
         while duplicate_trainings_elements:
             self.charge_positions = []
-            rows = np.random.random_integers(margin, self.gridHeight-margin-1, self.N)
-            columns = np.random.random_integers(margin, self.gridWidth-margin-1, self.N)
+            #rows = np.random.random_integers(margin, self.gridHeight-margin-1, self.N)
+            #columns = np.random.random_integers(margin, self.gridWidth-margin-1, self.N)
+
+            rows = np.random.randint(margin, self.gridHeight-margin-1+1, self.N)
+            columns = np.random.randint(margin, self.gridWidth-margin-1+1, self.N)
 
             for row, column in zip(rows, columns):
                 charge_tuple = (column, row)
