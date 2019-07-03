@@ -2,6 +2,7 @@ import datetime
 import getopt
 import json
 import os
+import pickle
 import sys
 import time
 from math import log
@@ -395,12 +396,12 @@ def make_model(architectureType, gridWidth, gridHeight, charges_count):
         model.add(layers.Dense(16, activation='relu'))
         model.add(layers.Dense(512, activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
-    elif architectureType == 34:
+    elif architectureType == 35:
         model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
         model.add(layers.Dense(32, activation='relu'))
         model.add(layers.Dense(16, activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
-    elif architectureType == 35:
+    elif architectureType == 36:
         model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
         model.add(layers.Dense(32, activation='relu'))
         model.add(layers.Dense(16, activation='relu'))
@@ -576,7 +577,7 @@ def deleteExistingFile(filepath):
         os.remove(filepath)
 
 def parseArguments(argv):
-    supportedOptions = "hd:o:N:l:e:s:a:"
+    supportedOptions = "hd:o:N:l:e:s:a:p:r:"
     supportLongOptions = ["dir=", "ofile="]
     usage = 'dense_single_charge.py -s <gridSize> -a <architectureType> -e <epochs> -N <count> -d <directory> -o <outputfile> -l <label>'
 
@@ -584,7 +585,8 @@ def parseArguments(argv):
     outputFile = None
     label = None
     count = 20
-
+    persistFile = None
+    readFile = None
 
     try:
         opts, args = getopt.getopt(argv, supportedOptions, supportLongOptions)
@@ -610,8 +612,12 @@ def parseArguments(argv):
             outputFile = arg
         elif opt in ("-l", "--label"):
             label = arg
+        elif opt in ("-p"):
+            persistFile = arg
+        elif opt in ("-r"):
+            readFile = arg
 
-    return outputFile, outputDirectory, gridSize, count, epochs, architectureType
+    return outputFile, outputDirectory, gridSize, count, epochs, architectureType, persistFile, readFile
 
 
 if __name__ == '__main__':
@@ -619,15 +625,18 @@ if __name__ == '__main__':
     charges_count = 1
 
     try:
-        outputFile, outputDirectory, gridSize, count, epochs, architectureType = parseArguments(sys.argv[1:])
+        outputFile, outputDirectory, gridSize, count, epochs, architectureType, persistFile, readFile = parseArguments(sys.argv[1:])
 
     except:
         outputFile = 'test_data'
         outputDirectory= '.'
         gridSize = 64
-        count = 2000
+        count = 1000
         epochs = 2
         architectureType = 1
+        #persistFile = 'my_dump.pickle'
+        #readFile = None
+        readFile = 'my_dump.pickle'
 
     fileName = makeFilename(outputDirectory, outputFile)
 
@@ -641,24 +650,40 @@ if __name__ == '__main__':
     poisson_equation = "div(grad( u(r) ))"
     pde = setupPDE_vector_calculus(gridSize, poisson_equation)
 
-    #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
-    fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=count)
-    #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
+    if readFile == None:
 
-    start = time.time()
-    fill_strategy.create_inputSet()
-    inputset_duration = time.time() - start
-    print('duration for creating input set:', inputset_duration)
+        #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
+        fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=count)
+        #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
 
-    fill_strategy.normalize_input_set()
+        start = time.time()
+        fill_strategy.create_inputSet()
+        inputset_duration = time.time() - start
+        print('duration for creating input set:', inputset_duration)
 
-    start = time.time()
-    fill_strategy.create_solutionSet(pde)
-    solutionset_duration = time.time() - start
-    print('duration for calculating solution set:', solutionset_duration)
+        fill_strategy.normalize_input_set()
 
-    fill_strategy.normalize_solutions()
-    fill_strategy.add_channel_axis_to_solutionSet()
+        start = time.time()
+        fill_strategy.create_solutionSet(pde)
+        solutionset_duration = time.time() - start
+        print('duration for calculating solution set:', solutionset_duration)
+
+        fill_strategy.normalize_solutions()
+        fill_strategy.add_channel_axis_to_solutionSet()
+
+        if persistFile != None:
+            with open(persistFile, 'wb') as f:
+                tuple_to_persist = (fill_strategy, inputset_duration, solutionset_duration)
+                pickle.dump(tuple_to_persist, f, pickle.HIGHEST_PROTOCOL)
+
+    else:
+        with open(readFile, 'rb') as f:
+
+            tuple_to_load = pickle.load(f)
+            fill_strategy = tuple_to_load[0]
+            inputset_duration = tuple_to_load[1]
+            solutionset_duration = tuple_to_load[2]
+
 
     #s = fill_strategy.solutions.reshape((fill_strategy.solutions.shape[0], pde.geometry.numX, (int)(pde.geometry.numY), -1))
 
