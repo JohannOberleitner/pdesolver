@@ -17,9 +17,6 @@ from sources.pdesolver.pde.PDE import PDEExpressionType, PDE
 
 import numpy as np
 
-from sources.experiments.fdm_helper import plotSurface
-import matplotlib.pyplot as plt
-
 class Results:
 
     def __init__(self, inputset_duration, solution_calculation_duration, learning_duration, errors):
@@ -49,11 +46,14 @@ class Results:
         self.variances_avg = np.average(variances)
         self.variances_variance = np.var(variances)
 
-        self.sum_error = np.average(sums)
+        self.sum_error_avg = np.average(sums)
         self.sum_error_variance = np.var(sums)
 
-        self.max_values = np.average(max_values)
+        self.sum_error_total = np.sum(sums)
+
+        self.max_values_avg = np.average(max_values)
         self.max_values_variance = np.var(max_values)
+        self.max_values_max = np.max(max_values)
 
         self.median_values = np.average(medians)
         self.median_values_variance = np.var(medians)
@@ -66,8 +66,10 @@ class Results:
                 'learning_duration': self.learning_duration,
                 'avg_error_avg': self.avg_error_avg, 'avg_error_variance':self.avg_error_variance,
                 'variances_avg': self.variances_avg, 'variances_variance':self.variances_variance,
-                'sum_error': self.sum_error, 'sum_error_variances': self.sum_error_variance,
-                'max_values': self.max_values, 'max_values_variance': self.max_values_variance,
+                'sum_error_avg': self.sum_error, 'sum_error_variances': self.sum_error_variance,
+                'sum_error_total': self.sum_error_total,
+                'max_values_avg': self.max_values_avg, 'max_values_variance': self.max_values_variance,
+                'max_values_max': self.max_values_max,
                 'median_values': self.median_values, 'median_values_variance': self.max_values_variance,
                 'errors': self.errors
                 }
@@ -723,7 +725,7 @@ if __name__ == '__main__':
     #print(prediction.shape)
 
     errors = calc_square_error_for_list(test_output, prediction)
-    errors_full = calc_square_error_for_list(fill_strategy.solution_set, prediction_full)
+    errors_full = calc_square_error_for_list(fill_strategy.solutions, prediction_full)
     #print(errors)
 
     saveModel(model, fileName)
@@ -736,9 +738,14 @@ if __name__ == '__main__':
     results_full = Results(inputset_duration, solutionset_duration, learning_duration, errors_full)
     write_results(fileName + '_results_full', results_full)
 
-    showGraph = 1
+    showGraph = 0
+    if os.environ['HOSTNAME'] == 'Johanns-MacBook-Pro.local':
+        showGraph = 1
 
     if showGraph:
+        from sources.experiments.fdm_helper import plotSurface
+        import matplotlib.pyplot as plt
+
         plotSurface(pde.geometry.X, pde.geometry.Y, prediction[0,:,:,0])
         plt.show()
 
