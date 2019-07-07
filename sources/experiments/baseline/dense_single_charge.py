@@ -638,9 +638,9 @@ if __name__ == '__main__':
         #readFile = None
         readFile = 'my_dump.pickle'
 
-    fileName = makeFilename(outputDirectory, outputFile)
-
-    print('Write output to:', os.path.abspath(fileName))
+    if outputFile != None:
+        fileName = makeFilename(outputDirectory, outputFile)
+        print('Write output to:', os.path.abspath(fileName))
 
     gridSize = float(gridSize)
 
@@ -676,6 +676,9 @@ if __name__ == '__main__':
                 tuple_to_persist = (fill_strategy, inputset_duration, solutionset_duration)
                 pickle.dump(tuple_to_persist, f, pickle.HIGHEST_PROTOCOL)
 
+            if outputFile == None:
+                sys.exit(0)
+
     else:
         with open(readFile, 'rb') as f:
 
@@ -690,7 +693,7 @@ if __name__ == '__main__':
     print(fill_strategy.input_set.shape)
     print(fill_strategy.solutions.shape)
 
-    trainings_count = int(count * 0.9)
+    trainings_count = int(count * 0.7)
     train_input = fill_strategy.input_set[0:trainings_count]
     train_output = fill_strategy.solutions[0:trainings_count]
     print(trainings_count, train_input.shape, train_output.shape)
@@ -700,7 +703,7 @@ if __name__ == '__main__':
     validation_output = fill_strategy.solutions[trainings_count:trainings_count+validation_count]
     print(validation_count, validation_input.shape, validation_output.shape)
 
-    test_count = int(count * 0.05)
+    test_count = int(count * 0.25)
     test_input = fill_strategy.input_set[trainings_count+validation_count:]
     test_output = fill_strategy.solutions[trainings_count+validation_count:]
     print(test_count, test_input.shape, test_output.shape)
@@ -715,10 +718,13 @@ if __name__ == '__main__':
 
     prediction = model.predict(test_input)
 
+    prediction_full = model.predict(fill_strategy.input_set)
+
     #print(prediction.shape)
 
     errors = calc_square_error_for_list(test_output, prediction)
-    print(errors)
+    errors_full = calc_square_error_for_list(fill_strategy.solution_set, prediction_full)
+    #print(errors)
 
     saveModel(model, fileName)
     trainingsSetConfig = TrainingsSetConfig(gridSize, gridSize, "1", epochs, count, fill_strategy.charges, datetime.datetime.utcnow())
@@ -726,6 +732,9 @@ if __name__ == '__main__':
 
     results = Results(inputset_duration, solutionset_duration, learning_duration, errors)
     write_results(fileName+'_results', results)
+
+    results_full = Results(inputset_duration, solutionset_duration, learning_duration, errors_full)
+    write_results(fileName + '_results_full', results_full)
 
     showGraph = 1
 
