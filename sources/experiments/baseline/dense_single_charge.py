@@ -66,7 +66,7 @@ class Results:
                 'learning_duration': self.learning_duration,
                 'avg_error_avg': self.avg_error_avg, 'avg_error_variance':self.avg_error_variance,
                 'variances_avg': self.variances_avg, 'variances_variance':self.variances_variance,
-                'sum_error_avg': self.sum_error, 'sum_error_variances': self.sum_error_variance,
+                'sum_error_avg': self.sum_error_avg, 'sum_error_variances': self.sum_error_variance,
                 'sum_error_total': self.sum_error_total,
                 'max_values_avg': self.max_values_avg, 'max_values_variance': self.max_values_variance,
                 'max_values_max': self.max_values_max,
