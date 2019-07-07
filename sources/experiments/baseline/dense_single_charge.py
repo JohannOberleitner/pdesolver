@@ -739,7 +739,7 @@ if __name__ == '__main__':
     write_results(fileName + '_results_full', results_full)
 
     showGraph = 0
-    if os.environ['HOSTNAME'] == 'Johanns-MacBook-Pro.local':
+    if os.environ['HOSTNAME'] and os.environ['HOSTNAME'] == 'Johanns-MacBook-Pro.local':
         showGraph = 1
 
     if showGraph:
