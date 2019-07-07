@@ -1,6 +1,7 @@
 import datetime
 import getopt
 import json
+import platform
 import os
 import pickle
 import sys
@@ -739,7 +740,7 @@ if __name__ == '__main__':
     write_results(fileName + '_results_full', results_full)
 
     showGraph = 0
-    if 'HOSTNAME' in os.environ['HOSTNAME'] and os.environ.get('HOSTNAME') == 'Johanns-MacBook-Pro.local':
+    if platform.uname()[1] != 'qcd':
         showGraph = 1
 
     if showGraph:
