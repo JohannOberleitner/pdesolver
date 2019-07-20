@@ -8,6 +8,7 @@ import sys
 import time
 from math import log, modf
 
+import tensorflow as tf
 from keras import models, layers, losses
 import keras.backend as K
 
@@ -858,6 +859,12 @@ def parseArguments(argv):
 
 
 if __name__ == '__main__':
+
+    print(tf.VERSION)
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    K.set_session(sess)
 
     charges_count = 4
 
