@@ -6,12 +6,13 @@ import os
 import pickle
 import sys
 import time
-from math import log
+from math import log, modf
 
 from keras import models, layers, losses
 import keras.backend as K
 
 from sources.experiments.charges_generators import make_central_charge, make_single_charge, make_n_fold_charge_from_list
+from sources.experiments.ellipsis_data_support.make_ellipsis import create_ellipsis_grid
 from sources.pdesolver.finite_differences_method.charge_distribution import ChargeDistribution
 from sources.pdesolver.finite_differences_method.geometry import Geometry
 from sources.pdesolver.pde.PDE import PDEExpressionType, PDE
@@ -131,13 +132,17 @@ class TrainingsSetConfigDecoder:
 
 
 
-def setupPDE_vector_calculus(gridSize, equation):
+def setupPDE_vector_calculus_without_configure(gridSize, equation):
 
     pde = PDE(gridSize, gridSize)
     pde.setEquationExpression(PDEExpressionType.VECTOR_CALCULUS, equation)
     pde.setVectorVariable("r", dimension=2)
-    pde.configureGrid()
+    return pde
 
+def setupPDE_complete(pde, auxiliaryFunctions=None):
+    if auxiliaryFunctions != None:
+        pde.setAuxiliaryFunctions(auxiliaryFunctions)
+    pde.configureGrid()
     return pde
 
 def calc_charge_weight_matrix(geometry, chargeDistribution, index=0):
@@ -220,10 +225,16 @@ class TrainingSet_CreationStrategy:
     def get_charge_value(self):
         return -10
 
+    def append_additional_channels(self, index, channel_data_list):
+        pass
+
+    def get_channel_count(self):
+        return self.charges_count
+
     def create_inputSet(self):
         self.prepare()
         self.charges = []
-        self.input_set = np.zeros(shape=(self.N, self.gridWidth, self.gridHeight, self.charges_count))
+        self.input_set = np.zeros(shape=(self.N, self.gridWidth, self.gridHeight, self.get_channel_count()))
 
         for index, charges_list in enumerate(self.charge_positions):
 
@@ -248,6 +259,8 @@ class TrainingSet_CreationStrategy:
                 self.charges.append(charge)
                 charges_weight_matrix_list = self.calc_weight_matrix_list(index, charge, charges_list)
 
+            self.append_additional_channels(index, charges_weight_matrix_list)
+
             #print(np.stack(charges_weight_matrix_list).shape, len(charges_weight_matrix_list))
             self.input_set[index] = np.stack(charges_weight_matrix_list, axis=-1)
 
@@ -266,9 +279,12 @@ class TrainingSet_CreationStrategy:
     def create_solutionSet(self, pde):
         self.solutions = np.zeros(shape=(self.N, self.gridWidth, self.gridHeight))
         for index, charge in enumerate(self.charges):
-            self.solutions[index] = pde.solve(charge)
+            self.solutions[index] = self.solve(pde, index, charge)
             if (index % 100) == 0:
                 print(index, ' solution set done')
+
+    def solve(self, pde, index, charge):
+        return pde.solve(charge)
 
     def normalize_input_set(self):
         self.input_set = self.input_set/np.max(self.input_set)
@@ -432,6 +448,145 @@ class TrainingSet_CreationStrategy_m_MultiCharge_Zeros(TrainingSet_CreationStrat
         return charges_weight_matrix_list
 
 
+class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSet_CreationStrategy):
+
+    def __init__(self, geometry, N, charges_count):
+        self.N = N
+        super(TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros, self).__init__(geometry, charges_count)
+
+    def get_channel_count(self):
+        return self.charges_count + 1
+
+    def prepare(self):
+        margin = self.get_marginWithout_Charge()
+
+        rows = np.random.randint(margin, self.gridHeight - margin - 1+1, self.N * self.charges_count)
+        columns = np.random.randint(margin, self.gridWidth - margin - 1+1, self.N * self.charges_count)
+        charges_count_per_trainingsset = np.random.randint(1, self.charges_count + 1, self.N)
+
+        self.charge_positions = []
+        for trainingsset_index in range(0, self.N):
+
+            charges_list = []
+            m = charges_count_per_trainingsset[trainingsset_index]
+            for index in range(0, m):
+                charge_tuple = (rows[trainingsset_index*self.charges_count+index],
+                                columns[trainingsset_index*self.charges_count+index],)
+                charges_list.append(charge_tuple)
+
+            self.charge_positions.append(charges_list)
+
+        self.calc_background()
+
+    def calc_background(self):
+        self.permittivity_matrices = []
+        angleValuesSet = np.linspace(np.pi / 20.0, np.pi, 20)
+        permittivityValueRange = [0.125, 0.25, 0.5, 1.25, 1.5, 2.0]
+
+        angles = np.random.choice(angleValuesSet, size=self.N)
+        semiAxes = np.random.randint(1, 21, size=self.N)
+        permittivities = np.random.choice(permittivityValueRange, size=self.N)
+
+        centerX = self.gridWidth / 2.0
+        centerY = self.gridHeight / 2.0
+        majorSemiAxis = self.gridWidth / 4.0
+        for angle, minorSemiAxis, permittivity in zip(angles, semiAxes, permittivities):
+            background_data = create_ellipsis_grid(self.gridHeight,self.gridWidth, centerX, centerY, majorSemiAxis, minorSemiAxis, permittivity, angle)
+            self.permittivity_matrices.append(background_data)
+
+
+    def calc_weight_matrix_list(self, index, charge, charges_list):
+        charges_weight_matrix_list = []
+        zero_matrix = np.zeros(shape=(len(self.geometry.Y),len(self.geometry.X)))
+
+        m = len(charges_list)
+
+        for charge_index in range(0, m):
+            charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge, charge_index))
+
+        for index in range(m, self.charges_count):
+            charges_weight_matrix_list.append(zero_matrix)
+
+        return charges_weight_matrix_list
+
+    def append_additional_channels(self, index, channel_data_list):
+        channel_data_list.append(self.permittivity_matrices[index])
+
+    def get_eps_value(self, index, i, j):
+        if len(self.permittivity_matrices[index]) <= i:
+            return 1.0
+        elif len(self.permittivity_matrices[index][i]) <= j:
+            return 1.0
+
+        if self.permittivity_matrices[index][i, j] == 0.0:
+            return 1.0
+        else:
+            return self.permittivity_matrices[index][i, j]
+
+    def get_eps_function(self, index):
+
+        def eps(params):
+            i = params[0]  # i
+            j = params[1]  # j
+
+            # first, check if average of 2 numbers needs to be taken,
+            # eg: i=1.5, j=1.0  => ret = 0.5 * (eps[1.0,j] + eps[2.0,j]
+            # #or i=1.5, j=1.5  => ret = 0.5 * (eps[1.0,1.0] + eps[2.0,2.0]
+
+            i_parts = modf(i)
+            j_parts = modf(j)
+            i_1 = int(i_parts[1])
+            i_2 = int(i_parts[1])
+            j_1 = int(j_parts[1])
+            j_2 = int(j_parts[1])
+            i_count = 2
+            j_count = 2
+
+            # check for float numbrers
+            if (i_parts[0] > 0.2 and i_parts[0] < 0.8):
+                i_2 = i_1+1
+                i_count = 2
+            else:
+                i_2 = i_1
+                i_count = 1
+
+            if (j_parts[0] > 0.2 and j_parts[0] < 0.8):
+                j_2 = j_1+1
+                j_count = 2
+            else:
+                j_2 = j_1
+                j_count = 1
+
+            if i_count == 2 or j_count == 2:
+                first_value = 0.0
+                if len(self.permittivity_matrices[index]) <= i_1:
+                    first_value = 1.0
+                elif len(self.permittivity_matrices[index][i_1]) <= j_1:
+                    first_value = 1.0
+                else:
+                    first_value = self.permittivity_matrices[index][i_1,j_1]
+
+                second_value = 0.0
+                if len(self.permittivity_matrices[index]) <= i_2:
+                    second_value = 1.0
+                elif len(self.permittivity_matrices[index][i_2]) <= j_2:
+                    second_value = 1.0
+                else:
+                    second_value = self.permittivity_matrices[index][i_2, j_2]
+
+                return 0.5 * (self.get_eps_value(index, i_1, j_1) + self.get_eps_value(index, i_2, j_2))
+
+            return self.get_eps_value(index, i_1, j_1)
+
+        return eps
+
+    def solve(self, pde, index, charge):
+        auxiliaryFunctionsDict = { 'eps': self.get_eps_function(index) }
+        pde.setAuxiliaryFunctions(auxiliaryFunctionsDict)
+        pde.configureGrid()
+        return pde.solve(charge)
+
+
 def make_model(architectureType, gridWidth, gridHeight, charges_count):
     model = models.Sequential()
 
@@ -534,16 +689,7 @@ def make_model(architectureType, gridWidth, gridHeight, charges_count):
         model.add(layers.Dense(256, activation='relu'))
         model.add(layers.Dense(32, activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
-    elif architectureType == 101:
-        model.add(layers.Reshape((1,64*64*charges_count), input_shape=(gridWidth, gridHeight, charges_count)))
-        model.add(layers.Dense(4096, activation='relu'))
-        model.add(layers.Reshape((64, 64, 1)))
 
-        #model.add(layers.Dense(1, input_shape=(gridWidth, gridHeight, charges_count)))
-        #model.add(layers.Flatten())
-        #model.add(layers.Dense(4096))
-        #model.add(layers.Reshape((64, 64, 1)))
-        #
 
     # model.add(layers.Dense(92, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
     # model.add(layers.Dense(128, activation='relu'))
@@ -593,7 +739,7 @@ def learn(model, epochs, train_input, train_output, validation_input, validation
     history = model.fit(x=train_input, y=train_output, epochs=epochs,
                         batch_size=1,
                         validation_data=(validation_input, validation_output),
-                        verbose=1
+                        verbose=0
                         )
 
 def calc_square_error_for_matrix(matrix1, matrix2):
@@ -713,7 +859,7 @@ def parseArguments(argv):
 
 if __name__ == '__main__':
 
-    charges_count = 2
+    charges_count = 4
 
     try:
         outputFile, outputDirectory, gridSize, count, epochs, architectureType, charges_count, persistFile, readFile = parseArguments(sys.argv[1:])
@@ -722,9 +868,9 @@ if __name__ == '__main__':
         outputFile = 'test_data'
         outputDirectory= '.'
         gridSize = 64
-        count = 2000
-        epochs = 10
-        architectureType = 101
+        count = 1000
+        epochs = 5
+        architectureType = 32
         persistFile = None
         #persistFile = 'my_dump.pickle'
         readFile = None
@@ -736,19 +882,27 @@ if __name__ == '__main__':
 
     gridSize = float(gridSize)
 
+    additional_channel_count = 1
 
-    model = make_model(architectureType, (int)(gridSize), (int)(gridSize), charges_count)
+    model = make_model(architectureType, (int)(gridSize), (int)(gridSize), charges_count+additional_channel_count)
 
-    poisson_equation = "div(grad( u(r) ))"
-    pde = setupPDE_vector_calculus(gridSize, poisson_equation)
+    #poisson_equation = "div(grad( u(r) ))"
+
+
 
     if readFile == None:
+
+        poisson_equation_with_matter = "div(eps(r) * grad( u(r) ))"
+        pde = setupPDE_vector_calculus_without_configure(gridSize, poisson_equation_with_matter)
 
         #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
         #fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=count)
         #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
-        fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Zeros(pde.geometry, N=count, charges_count=charges_count)
+        #fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Zeros(pde.geometry, N=count, charges_count=charges_count)
         #fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Duplicates(pde.geometry, N=count, charges_count=charges_count)
+        fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(pde.geometry, N=count, charges_count=charges_count)
+
+
 
         start = time.time()
         fill_strategy.create_inputSet()
