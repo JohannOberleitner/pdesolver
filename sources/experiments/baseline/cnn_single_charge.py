@@ -8,6 +8,8 @@ import sys
 import time
 from math import log
 
+
+import tensorflow as tf
 from keras import models, layers, losses
 import keras.backend as K
 
@@ -592,7 +594,7 @@ def parseArguments(argv):
             print(usage)
             sys.exit()
         elif opt in ("-a"):
-            architectureType = int(arg)
+            architectureType = arg
         elif opt in ("-s"):
             gridSize = int(arg)
         elif opt in ("-e"):
@@ -614,6 +616,12 @@ def parseArguments(argv):
 
 
 if __name__ == '__main__':
+
+    print(tf.VERSION)
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    K.set_session(sess)
 
     charges_count = 1
 
