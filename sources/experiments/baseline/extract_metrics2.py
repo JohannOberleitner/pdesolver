@@ -2,13 +2,13 @@ import getopt
 import json
 import sys
 
-def make_filename(baseFilename, gridSize, architectureType, count, epochs, index, postfix):
-    return '{0}_{1}_{2}_{3}_{4}_{5}_{6}'.format(baseFilename, gridSize, architectureType, epochs, count, index, postfix)
+def make_filename(baseFilename, gridSize, architectureType, count, epochs, index, charges_count, postfix):
+    return '{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}'.format(baseFilename, gridSize, architectureType, charges_count, epochs, count, index, postfix)
 
 
 def parseArguments(argv):
-    supportedOptions = "hf:s:a:N:e:p:"
-    usage = 'extract_metrics.py -f <basefileName> -s <gridSize> -a <architectureType> -N <count> -e <epochs> -p <postfix> --start <start> --end <end>'
+    supportedOptions = "hf:s:a:N:e:p:c:"
+    usage = 'extract_metrics.py -f <basefileName> -s <gridSize> -a <architectureType> -N <count> -e <epochs> -c <charges> -p <postfix> --start <start> --end <end>'
 
     baseFileName = None
     label = None
@@ -31,7 +31,7 @@ def parseArguments(argv):
         elif opt in ("-s"):
             gridSize = int(arg)
         elif opt in ("-a"):
-            architectureType = int(arg)
+            architectureType = arg
         elif opt in ("-N"):
             count = int(arg)
         elif opt in ("-e"):
@@ -42,17 +42,19 @@ def parseArguments(argv):
             startIndex = int(arg)
         elif opt in ("--end"):
             endIndex = int(arg)
+        elif opt in ("-c"):
+            charges_count = int(arg)
 
-    return baseFileName, gridSize, architectureType, count, epochs, startIndex, endIndex, postfix
+    return baseFileName, gridSize, architectureType, count, epochs, startIndex, endIndex, charges_count, postfix
 
 
 if __name__ == '__main__':
 
-    baseFilename, gridSize, architectureType, count, epochs, startIndex, endIndex, postfix = parseArguments(sys.argv[1:])
+    baseFilename, gridSize, architectureType, count, epochs, startIndex, endIndex, charges_count, postfix = parseArguments(sys.argv[1:])
 
     s = ''
     for index in range(startIndex, endIndex+1):
-        filename = make_filename(baseFilename, gridSize, architectureType, count, epochs, index, postfix)
+        filename = make_filename(baseFilename, gridSize, architectureType, count, epochs, index, charges_count, postfix)
 
         with open(filename, "r") as read_file:
           data = json.load(read_file)

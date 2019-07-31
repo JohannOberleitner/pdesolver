@@ -8,7 +8,6 @@ import sys
 import time
 from math import log
 
-
 import tensorflow as tf
 from keras import models, layers, losses
 import keras.backend as K
@@ -209,9 +208,12 @@ class SortedChargeCollection:
 
 
 class TrainingSet_CreationStrategy:
-    def __init__(self):
+    def __init__(self, geometry, charges_count):
         self.charge_positions = []
-        self.charges_count = 1
+        self.geometry = geometry
+        self.gridWidth = geometry.numX
+        self.gridHeight = geometry.numY
+        self.charges_count = charges_count
 
     def get_marginWithout_Charge(self):
         return 4
@@ -226,8 +228,6 @@ class TrainingSet_CreationStrategy:
 
         for index, charges_list in enumerate(self.charge_positions):
 
-            charges_weight_matrix_list = []
-
             if len(charges_list) == 1:
                 charge_tuple = charges_list[0]
                 column = charge_tuple[0]
@@ -235,7 +235,7 @@ class TrainingSet_CreationStrategy:
 
                 charge = make_single_charge(self.geometry, column/self.gridWidth, row/self.gridHeight, self.get_charge_value())
                 self.charges.append(charge)
-                charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge))
+                charges_weight_matrix_list = self.calc_weight_matrix_list(0, charge, charges_list)
 
             else:
                 charges_coordinate_list = []
@@ -245,15 +245,24 @@ class TrainingSet_CreationStrategy:
                     charges_coordinate_list.append((column/self.gridWidth, row/self.gridHeight))
 
                 charge = make_n_fold_charge_from_list(self.geometry, charges_coordinate_list, self.get_charge_value(), variateSign=False)
+
                 self.charges.append(charge)
+                charges_weight_matrix_list = self.calc_weight_matrix_list(index, charge, charges_list)
 
-                for charge_index in range(0, self.charges_count):
-                    charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge, charge_index))
-
+            #print(np.stack(charges_weight_matrix_list).shape, len(charges_weight_matrix_list))
             self.input_set[index] = np.stack(charges_weight_matrix_list, axis=-1)
 
             if (index % 100) == 0:
                 print(index, ' input set done')
+
+    def calc_weight_matrix_list(self, index, charge, charges_list):
+        charges_weight_matrix_list = []
+        if len(charges_list) == 1:
+            charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge))
+        else:
+            for charge_index in range(0, self.charges_count):
+                charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge, charge_index))
+        return charges_weight_matrix_list
 
     def create_solutionSet(self, pde):
         self.solutions = np.zeros(shape=(self.N, self.gridWidth, self.gridHeight))
@@ -275,10 +284,7 @@ class TrainingSet_CreationStrategy:
 class TrainingSet_CreationStrategy_Full_SingleCharge(TrainingSet_CreationStrategy):
 
     def __init__(self, geometry):
-        self.charges_count = 1
-        self.geometry = geometry
-        self.gridWidth = geometry.numX
-        self.gridHeight = geometry.numY
+        super(TrainingSet_CreationStrategy_Full_SingleCharge, self).__init__(geometry, 1)
 
     def prepare(self):
         margin = self.get_marginWithout_Charge()
@@ -298,11 +304,8 @@ class TrainingSet_CreationStrategy_Full_SingleCharge(TrainingSet_CreationStrateg
 class TrainingSet_CreationStrategy_N_SingleCharge(TrainingSet_CreationStrategy):
 
     def __init__(self, geometry, N):
-        self.charges_count = 1
-        self.geometry = geometry
-        self.gridWidth = geometry.numX
-        self.gridHeight = geometry.numY
         self.N = N
+        super(TrainingSet_CreationStrategy_N_SingleCharge, self).__init__(geometry, 1)
 
     def prepare(self):
         margin = self.get_marginWithout_Charge()
@@ -332,17 +335,14 @@ class TrainingSet_CreationStrategy_N_SingleCharge(TrainingSet_CreationStrategy):
 class TrainingSet_CreationStrategy_N_MultiCharge(TrainingSet_CreationStrategy):
 
     def __init__(self, geometry, N, charges_count):
-        self.charges_count = charges_count
-        self.geometry = geometry
-        self.gridWidth = geometry.numX
-        self.gridHeight = geometry.numY
         self.N = N
+        super(TrainingSet_CreationStrategy_N_MultiCharge, self).__init__(geometry, charges_count)
 
     def prepare(self):
         margin = self.get_marginWithout_Charge()
 
-        rows = np.random.random_integers(margin, self.gridHeight - margin - 1, self.N * self.charges_count)
-        columns = np.random.random_integers(margin, self.gridWidth - margin - 1, self.N * self.charges_count)
+        rows = np.random.randint(margin, self.gridHeight - margin - 1+1, self.N * self.charges_count)
+        columns = np.random.randint(margin, self.gridWidth - margin - 1+1, self.N * self.charges_count)
 
         self.charge_positions = []
         for trainingsset_index in range(0, self.N):
@@ -355,6 +355,82 @@ class TrainingSet_CreationStrategy_N_MultiCharge(TrainingSet_CreationStrategy):
                 charges_list.append(charge_tuple)
 
             self.charge_positions.append(charges_list)
+
+class TrainingSet_CreationStrategy_m_MultiCharge_Duplicates(TrainingSet_CreationStrategy):
+
+    def __init__(self, geometry, N, charges_count):
+        self.N = N
+        super(TrainingSet_CreationStrategy_m_MultiCharge_Duplicates, self).__init__(geometry, charges_count)
+
+    def prepare(self):
+        margin = self.get_marginWithout_Charge()
+
+        rows = np.random.randint(margin, self.gridHeight - margin - 1+1, self.N * self.charges_count)
+        columns = np.random.randint(margin, self.gridWidth - margin - 1+1, self.N * self.charges_count)
+        charges_count_per_trainingsset = np.random.randint(1, self.charges_count + 1, self.N)
+
+        self.charge_positions = []
+        for trainingsset_index in range(0, self.N):
+
+            charges_list = []
+            m = charges_count_per_trainingsset[trainingsset_index]
+            for index in range(0, m):
+                charge_tuple = (rows[trainingsset_index*self.charges_count+index],
+                                columns[trainingsset_index*self.charges_count+index],)
+                charges_list.append(charge_tuple)
+
+            self.charge_positions.append(charges_list)
+
+    def calc_weight_matrix_list(self, index, charge, charges_list):
+        charges_weight_matrix_list = []
+        m = len(charges_list)
+
+        for charge_index in range(0, m):
+            charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge, charge_index))
+
+        for index in range(m, self.charges_count):
+            charges_weight_matrix_list.append(charges_weight_matrix_list[index % m])
+
+        return charges_weight_matrix_list
+
+class TrainingSet_CreationStrategy_m_MultiCharge_Zeros(TrainingSet_CreationStrategy):
+
+    def __init__(self, geometry, N, charges_count):
+        self.N = N
+        super(TrainingSet_CreationStrategy_m_MultiCharge_Zeros, self).__init__(geometry, charges_count)
+
+    def prepare(self):
+        margin = self.get_marginWithout_Charge()
+
+        rows = np.random.randint(margin, self.gridHeight - margin - 1+1, self.N * self.charges_count)
+        columns = np.random.randint(margin, self.gridWidth - margin - 1+1, self.N * self.charges_count)
+        charges_count_per_trainingsset = np.random.randint(1, self.charges_count + 1, self.N)
+
+        self.charge_positions = []
+        for trainingsset_index in range(0, self.N):
+
+            charges_list = []
+            m = charges_count_per_trainingsset[trainingsset_index]
+            for index in range(0, m):
+                charge_tuple = (rows[trainingsset_index*self.charges_count+index],
+                                columns[trainingsset_index*self.charges_count+index],)
+                charges_list.append(charge_tuple)
+
+            self.charge_positions.append(charges_list)
+
+    def calc_weight_matrix_list(self, index, charge, charges_list):
+        charges_weight_matrix_list = []
+        zero_matrix = np.zeros(shape=(len(self.geometry.Y),len(self.geometry.X)))
+
+        m = len(charges_list)
+
+        for charge_index in range(0, m):
+            charges_weight_matrix_list.append(calc_charge_weight_matrix(self.geometry, charge, charge_index))
+
+        for index in range(m, self.charges_count):
+            charges_weight_matrix_list.append(zero_matrix)
+
+        return charges_weight_matrix_list
 
 
 def make_model(architectureType, gridWidth, gridHeight, charges_count):
@@ -451,6 +527,116 @@ def make_model(architectureType, gridWidth, gridHeight, charges_count):
         model.add(layers.Conv2D(64, (1, 1), activation='relu'))
         model.add(layers.Conv2D(1, (1, 1), activation='relu'))
 
+    elif architectureType == 1:
+        model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 2:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 3:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 21:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 22:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(128, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 23:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 31:
+        model.add(layers.Dense(64, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 32:
+        model.add(layers.Dense(64, input_shape=(gridWidth,gridHeight,charges_count), activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 33:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 34:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 35:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 36:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 41:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 42:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 43:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 44:
+        model.add(layers.Dense(64, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 45:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(96, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 46:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 47:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(16, activation='relu'))
+        model.add(layers.Dense(512, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 48:
+        model.add(layers.Dense(96, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Dense(2048, activation='relu'))
+        model.add(layers.Dense(256, activation='relu'))
+        model.add(layers.Dense(32, activation='relu'))
+        model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 101:
+        model.add(layers.Reshape((1,64*64*charges_count), input_shape=(gridWidth, gridHeight, charges_count)))
+        model.add(layers.Dense(4096, activation='relu'))
+        model.add(layers.Reshape((64, 64, 1)))
+
+        #model.add(layers.Dense(1, input_shape=(gridWidth, gridHeight, charges_count)))
+        #model.add(layers.Flatten())
+        #model.add(layers.Dense(4096))
+        #model.add(layers.Reshape((64, 64, 1)))
+        #
+
     # model.add(layers.Dense(92, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
     # model.add(layers.Dense(128, activation='relu'))
     # model.add(layers.Dense(64, activation='relu'))
@@ -499,7 +685,7 @@ def learn(model, epochs, train_input, train_output, validation_input, validation
     history = model.fit(x=train_input, y=train_output, epochs=epochs,
                         batch_size=1,
                         validation_data=(validation_input, validation_output),
-                        verbose=0
+                        verbose=1
                         )
 
 def calc_square_error_for_matrix(matrix1, matrix2):
@@ -572,9 +758,9 @@ def deleteExistingFile(filepath):
         os.remove(filepath)
 
 def parseArguments(argv):
-    supportedOptions = "hd:o:N:l:e:s:a:p:r:"
+    supportedOptions = "hd:o:N:l:e:s:a:p:r:c:"
     supportLongOptions = ["dir=", "ofile="]
-    usage = 'dense_single_charge.py -s <gridSize> -a <architectureType> -e <epochs> -N <count> -d <directory> -o <outputfile> -l <label>'
+    usage = 'dense_single_charge.py -s <gridSize> -a <architectureType> -e <epochs> -N <count> -d <directory> -o <outputfile> -l <label> -c <charges_count>'
 
     outputDirectory = '.'
     outputFile = None
@@ -601,6 +787,8 @@ def parseArguments(argv):
             epochs = int(arg)
         elif opt in ("-N"):
             count = int(arg)
+        elif opt in ("-c"):
+            charges_count = int(arg)
         elif opt in ("-d", "--dir"):
             outputDirectory = arg
         elif opt in ("-o", "--ofile"):
@@ -612,7 +800,7 @@ def parseArguments(argv):
         elif opt in ("-r"):
             readFile = arg
 
-    return outputFile, outputDirectory, gridSize, count, epochs, architectureType, persistFile, readFile
+    return outputFile, outputDirectory, gridSize, count, epochs, architectureType, charges_count, persistFile, readFile
 
 
 if __name__ == '__main__':
@@ -623,21 +811,22 @@ if __name__ == '__main__':
     sess = tf.Session(config=config)
     K.set_session(sess)
 
-    charges_count = 1
+    charges_count = 2
 
     try:
-        outputFile, outputDirectory, gridSize, count, epochs, architectureType, persistFile, readFile = parseArguments(sys.argv[1:])
+        outputFile, outputDirectory, gridSize, count, epochs, architectureType, charges_count, persistFile, readFile = parseArguments(sys.argv[1:])
 
     except:
         outputFile = 'test_data'
         outputDirectory= '.'
         gridSize = 64
         count = 1000
-        epochs = 2
-        architectureType = 'c91'
+        epochs = 10
+        architectureType = 'c31'
+        persistFile = None
         #persistFile = 'my_dump.pickle'
-        #readFile = None
-        readFile = 'my_dump.pickle'
+        readFile = None
+        #readFile = 'my_dump.pickle'
 
     if outputFile != None:
         fileName = makeFilename(outputDirectory, outputFile)
@@ -654,8 +843,10 @@ if __name__ == '__main__':
     if readFile == None:
 
         #fill_strategy = TrainingSet_CreationStrategy_Full_SingleCharge(pde.geometry)
-        fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=count)
+        #fill_strategy = TrainingSet_CreationStrategy_N_SingleCharge(pde.geometry, N=count)
         #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
+        fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Zeros(pde.geometry, N=count, charges_count=charges_count)
+        #fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Duplicates(pde.geometry, N=count, charges_count=charges_count)
 
         start = time.time()
         fill_strategy.create_inputSet()
@@ -734,8 +925,8 @@ if __name__ == '__main__':
     results = Results(inputset_duration, solutionset_duration, learning_duration, errors)
     write_results(fileName+'_results', results)
 
-    results_full = Results(inputset_duration, solutionset_duration, learning_duration, errors_full)
-    write_results(fileName + '_results_full', results_full)
+    #results_full = Results(inputset_duration, solutionset_duration, learning_duration, errors_full)
+    #write_results(fileName + '_results_full', results_full)
 
     showGraph = 0
     if platform.uname()[1] != 'qcd':
@@ -745,7 +936,7 @@ if __name__ == '__main__':
         from sources.experiments.fdm_helper import plotSurface
         import matplotlib.pyplot as plt
 
-        for i in range(0,5):
+        for i in range(0, 5):
             plotSurface(pde.geometry.X[16:48, 16:48], pde.geometry.Y[16:48, 16:48], prediction[i,:,:,0])
             plt.show()
 
