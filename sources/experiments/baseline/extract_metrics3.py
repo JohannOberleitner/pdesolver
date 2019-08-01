@@ -31,7 +31,7 @@ def parseArguments(argv):
         elif opt in ("-s"):
             gridSize = int(arg)
         elif opt in ("-a"):
-            architectureType = int(arg)
+            architectureType = arg
         elif opt in ("-N"):
             count = int(arg)
         elif opt in ("-e"):
