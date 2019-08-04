@@ -132,7 +132,6 @@ class TrainingsSetConfigDecoder:
         return TrainingsSetConfig(gridWidth, gridHeight, architectureType, N, charges)
 
 
-
 def setupPDE_vector_calculus_without_configure(gridSize, equation):
 
     pde = PDE(gridSize, gridSize)
@@ -144,6 +143,16 @@ def setupPDE_complete(pde, auxiliaryFunctions=None):
     if auxiliaryFunctions != None:
         pde.setAuxiliaryFunctions(auxiliaryFunctions)
     pde.configureGrid()
+    return pde
+
+
+def setupPDE_vector_calculus(gridSize, equation):
+
+    pde = PDE(gridSize, gridSize)
+    pde.setEquationExpression(PDEExpressionType.VECTOR_CALCULUS, equation)
+    pde.setVectorVariable("r", dimension=2)
+    pde.configureGrid()
+
     return pde
 
 def calc_charge_weight_matrix(geometry, chargeDistribution, index=0):
@@ -226,16 +235,10 @@ class TrainingSet_CreationStrategy:
     def get_charge_value(self):
         return -10
 
-    def append_additional_channels(self, index, channel_data_list):
-        pass
-
-    def get_channel_count(self):
-        return self.charges_count
-
     def create_inputSet(self):
         self.prepare()
         self.charges = []
-        self.input_set = np.zeros(shape=(self.N, self.gridWidth, self.gridHeight, self.get_channel_count()))
+        self.input_set = np.zeros(shape=(self.N, self.gridWidth, self.gridHeight, self.charges_count))
 
         for index, charges_list in enumerate(self.charge_positions):
 
@@ -259,8 +262,6 @@ class TrainingSet_CreationStrategy:
 
                 self.charges.append(charge)
                 charges_weight_matrix_list = self.calc_weight_matrix_list(index, charge, charges_list)
-
-            self.append_additional_channels(index, charges_weight_matrix_list)
 
             #print(np.stack(charges_weight_matrix_list).shape, len(charges_weight_matrix_list))
             self.input_set[index] = np.stack(charges_weight_matrix_list, axis=-1)
@@ -461,8 +462,8 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
     def prepare(self):
         margin = self.get_marginWithout_Charge()
 
-        rows = np.random.randint(margin, self.gridHeight - margin - 1+1, self.N * self.charges_count)
-        columns = np.random.randint(margin, self.gridWidth - margin - 1+1, self.N * self.charges_count)
+        rows = np.random.randint(margin, self.gridHeight - margin - 1 + 1, self.N * self.charges_count)
+        columns = np.random.randint(margin, self.gridWidth - margin - 1 + 1, self.N * self.charges_count)
         charges_count_per_trainingsset = np.random.randint(1, self.charges_count + 1, self.N)
 
         self.charge_positions = []
@@ -471,8 +472,8 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
             charges_list = []
             m = charges_count_per_trainingsset[trainingsset_index]
             for index in range(0, m):
-                charge_tuple = (rows[trainingsset_index*self.charges_count+index],
-                                columns[trainingsset_index*self.charges_count+index],)
+                charge_tuple = (rows[trainingsset_index * self.charges_count + index],
+                                columns[trainingsset_index * self.charges_count + index],)
                 charges_list.append(charge_tuple)
 
             self.charge_positions.append(charges_list)
@@ -492,13 +493,13 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
         centerY = self.gridHeight / 2.0
         majorSemiAxis = self.gridWidth / 4.0
         for angle, minorSemiAxis, permittivity in zip(angles, semiAxes, permittivities):
-            background_data = create_ellipsis_grid(self.gridHeight,self.gridWidth, centerX, centerY, majorSemiAxis, minorSemiAxis, permittivity, angle)
+            background_data = create_ellipsis_grid(self.gridHeight, self.gridWidth, centerX, centerY, majorSemiAxis,
+                                                   minorSemiAxis, permittivity, angle)
             self.permittivity_matrices.append(background_data)
-
 
     def calc_weight_matrix_list(self, index, charge, charges_list):
         charges_weight_matrix_list = []
-        zero_matrix = np.zeros(shape=(len(self.geometry.Y),len(self.geometry.X)))
+        zero_matrix = np.zeros(shape=(len(self.geometry.Y), len(self.geometry.X)))
 
         m = len(charges_list)
 
@@ -545,14 +546,14 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
 
             # check for float numbrers
             if (i_parts[0] > 0.2 and i_parts[0] < 0.8):
-                i_2 = i_1+1
+                i_2 = i_1 + 1
                 i_count = 2
             else:
                 i_2 = i_1
                 i_count = 1
 
             if (j_parts[0] > 0.2 and j_parts[0] < 0.8):
-                j_2 = j_1+1
+                j_2 = j_1 + 1
                 j_count = 2
             else:
                 j_2 = j_1
@@ -565,7 +566,7 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
                 elif len(self.permittivity_matrices[index][i_1]) <= j_1:
                     first_value = 1.0
                 else:
-                    first_value = self.permittivity_matrices[index][i_1,j_1]
+                    first_value = self.permittivity_matrices[index][i_1, j_1]
                     if first_value == 0.0:
                         first_value = 1.0
 
@@ -586,7 +587,7 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
         return eps
 
     def solve(self, pde, index, charge):
-        auxiliaryFunctionsDict = { 'eps': self.get_eps_function(index) }
+        auxiliaryFunctionsDict = {'eps': self.get_eps_function(index)}
         pde.setAuxiliaryFunctions(auxiliaryFunctionsDict)
         pde.configureGrid()
         return pde.solve(charge)
@@ -595,7 +596,98 @@ class TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(TrainingSe
 def make_model(architectureType, gridWidth, gridHeight, charges_count):
     model = models.Sequential()
 
-    if architectureType == 1:
+    if architectureType == 'c31':
+        model.add(layers.Conv2D(16, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(16, (17, 17), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c32':
+        model.add(layers.Conv2D(64, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(64, (17, 17), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c33':
+        model.add(layers.Conv2D(128, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(128, (17, 17), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c51':
+        model.add(layers.Conv2D(32, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(64, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(96, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(32, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c52':
+        model.add(layers.Conv2D(64, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(128, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(128, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(32, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c53':
+        model.add(layers.Conv2D(64, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(128, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(256, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c54': # rename to c71
+        model.add(layers.Conv2D(64, (13, 13), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(96, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(128, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(96, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(32, (1, 1), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    elif architectureType == 'c81':  ## Shan Paper Network
+        model.add(layers.Conv2D(16, (11, 11), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(32, (11, 11), activation='relu'))
+        model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c82':
+        model.add(layers.Conv2D(64, (11, 11), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(128, (11, 11), activation='relu'))
+        model.add(layers.Conv2D(256, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(128, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(96, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(32, (1, 1), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    elif architectureType == 'c83':
+        model.add(layers.Conv2D(64, (11, 11), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(96, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(128, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(96, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(64, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(32, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    elif architectureType == 'c91':
+        model.add(layers.Conv2D(64, (11, 11), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(96, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(128, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(192, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(128, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(96, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(32, (1, 1), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+
+    elif architectureType == 'c92':
+        model.add(layers.Conv2D(64, (11, 11), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(256, (7, 7), activation='relu'))
+        model.add(layers.Conv2D(512, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(1024, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(512, (5, 5), activation='relu'))
+        model.add(layers.Conv2D(256, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (1, 1), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+
+    elif architectureType == 1:
         model.add(layers.Dense(16, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
     elif architectureType == 2:
@@ -694,7 +786,16 @@ def make_model(architectureType, gridWidth, gridHeight, charges_count):
         model.add(layers.Dense(256, activation='relu'))
         model.add(layers.Dense(32, activation='relu'))
         model.add(layers.Dense(1, activation='relu'))
+    elif architectureType == 101:
+        model.add(layers.Reshape((1,64*64*charges_count), input_shape=(gridWidth, gridHeight, charges_count)))
+        model.add(layers.Dense(4096, activation='relu'))
+        model.add(layers.Reshape((64, 64, 1)))
 
+        #model.add(layers.Dense(1, input_shape=(gridWidth, gridHeight, charges_count)))
+        #model.add(layers.Flatten())
+        #model.add(layers.Dense(4096))
+        #model.add(layers.Reshape((64, 64, 1)))
+        #
 
     # model.add(layers.Dense(92, input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
     # model.add(layers.Dense(128, activation='relu'))
@@ -839,7 +940,7 @@ def parseArguments(argv):
             print(usage)
             sys.exit()
         elif opt in ("-a"):
-            architectureType = int(arg)
+            architectureType = arg
         elif opt in ("-s"):
             gridSize = int(arg)
         elif opt in ("-e"):
@@ -870,7 +971,7 @@ if __name__ == '__main__':
     sess = tf.Session(config=config)
     K.set_session(sess)
 
-    charges_count = 4
+    charges_count = 2
 
     try:
         outputFile, outputDirectory, gridSize, count, epochs, architectureType, charges_count, persistFile, readFile = parseArguments(sys.argv[1:])
@@ -881,7 +982,7 @@ if __name__ == '__main__':
         gridSize = 64
         count = 1000
         epochs = 2
-        architectureType = 32
+        architectureType = 'c31'
         persistFile = None
         #persistFile = 'my_dump.pickle'
         readFile = None
@@ -893,13 +994,8 @@ if __name__ == '__main__':
 
     gridSize = float(gridSize)
 
-    additional_channel_count = 1
 
-    model = make_model(architectureType, (int)(gridSize), (int)(gridSize), charges_count+additional_channel_count)
-
-    #poisson_equation = "div(grad( u(r) ))"
-
-
+    model = make_model(architectureType, (int)(gridSize), (int)(gridSize), charges_count)
 
     if readFile == None:
 
@@ -911,9 +1007,8 @@ if __name__ == '__main__':
         #fill_strategy = TrainingSet_CreationStrategy_N_MultiCharge(pde.geometry, N=count, charges_count=charges_count)
         #fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Zeros(pde.geometry, N=count, charges_count=charges_count)
         #fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_Duplicates(pde.geometry, N=count, charges_count=charges_count)
-        fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(pde.geometry, N=count, charges_count=charges_count)
-
-
+        fill_strategy = TrainingSet_CreationStrategy_m_MultiCharge_EllipticMatter_Zeros(pde.geometry, N=count,
+                                                                                        charges_count=charges_count)
 
         start = time.time()
         fill_strategy.create_inputSet()
@@ -954,17 +1049,17 @@ if __name__ == '__main__':
 
     trainings_count = int(count * 0.7)
     train_input = fill_strategy.input_set[0:trainings_count]
-    train_output = fill_strategy.solutions[0:trainings_count]
+    train_output = fill_strategy.solutions[0:trainings_count, 16:48, 16:48, :]
     print(trainings_count, train_input.shape, train_output.shape)
 
     validation_count = int(count * 0.05)
     validation_input = fill_strategy.input_set[trainings_count:trainings_count+validation_count]
-    validation_output = fill_strategy.solutions[trainings_count:trainings_count+validation_count]
+    validation_output = fill_strategy.solutions[trainings_count:trainings_count+validation_count, 16:48, 16:48, :]
     print(validation_count, validation_input.shape, validation_output.shape)
 
     test_count = int(count * 0.25)
     test_input = fill_strategy.input_set[trainings_count+validation_count:]
-    test_output = fill_strategy.solutions[trainings_count+validation_count:]
+    test_output = fill_strategy.solutions[trainings_count+validation_count:, 16:48, 16:48, :]
     print(test_count, test_input.shape, test_output.shape)
 
 
@@ -982,7 +1077,7 @@ if __name__ == '__main__':
     #print(prediction.shape)
 
     errors = calc_square_error_for_list(test_output, prediction)
-    errors_full = calc_square_error_for_list(fill_strategy.solutions, prediction_full)
+    errors_full = calc_square_error_for_list(fill_strategy.solutions[:, 16:48, 16:48, :], prediction_full)
     #print(errors)
 
     saveModel(model, fileName)
@@ -1004,6 +1099,6 @@ if __name__ == '__main__':
         import matplotlib.pyplot as plt
 
         for i in range(0, 5):
-            plotSurface(pde.geometry.X, pde.geometry.Y, prediction[i,:,:,0])
+            plotSurface(pde.geometry.X[16:48, 16:48], pde.geometry.Y[16:48, 16:48], prediction[i,:,:,0])
             plt.show()
 
