@@ -713,7 +713,7 @@ def learn(model, epochs, train_input, train_output, validation_input, validation
     history = model.fit(x=train_input, y=train_output, epochs=epochs,
                         batch_size=1,
                         validation_data=(validation_input, validation_output),
-                        verbose=1
+                        verbose=0
                         )
 
 def calc_square_error_for_matrix(matrix1, matrix2):
@@ -808,7 +808,7 @@ def parseArguments(argv):
             print(usage)
             sys.exit()
         elif opt in ("-a"):
-            architectureType = int(arg)
+            architectureType = arg
         elif opt in ("-s"):
             gridSize = int(arg)
         elif opt in ("-e"):
