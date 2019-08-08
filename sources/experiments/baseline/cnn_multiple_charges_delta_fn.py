@@ -483,6 +483,12 @@ def make_model(architectureType, gridWidth, gridHeight, charges_count):
         model.add(layers.Conv2D(128, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
         model.add(layers.Conv2D(128, (17, 17), activation='relu'))
         model.add(layers.Conv2D(1, (1, 1), activation='relu'))
+    elif architectureType == 'c55':
+        model.add(layers.Conv2D(128, (15, 15), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
+        model.add(layers.Conv2D(256, (15, 15), activation='relu'))
+        model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        model.add(layers.Conv2D(1, (1, 1), activation='relu'))
     elif architectureType == 'c51':
         model.add(layers.Conv2D(32, (17, 17), input_shape=(gridWidth, gridHeight, charges_count), activation='relu'))
         model.add(layers.Conv2D(64, (7, 7), activation='relu'))
@@ -833,7 +839,7 @@ if __name__ == '__main__':
     sess = tf.Session(config=config)
     K.set_session(sess)
 
-    charges_count = 4
+    charges_count = 1
 
     try:
         outputFile, outputDirectory, gridSize, count, epochs, architectureType, charges_count, persistFile, readFile = parseArguments(sys.argv[1:])
@@ -842,9 +848,9 @@ if __name__ == '__main__':
         outputFile = 'test_data'
         outputDirectory= '.'
         gridSize = 64
-        count = 2000
-        epochs = 2
-        architectureType = 'c33'
+        count = 1000
+        epochs = 5
+        architectureType = 'c55'
         persistFile = None
         #persistFile = 'my_dump.pickle'
         readFile = None
